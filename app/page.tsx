@@ -34,7 +34,7 @@ const Underline = glyph("U̲");
 
 type Mode = "cards" | "article";
 type ThemeName = "paper" | "cream" | "mist" | "night";
-type AvatarShape = "square" | "dino" | "circle";
+type AvatarShape = "square" | "dino" | "dog" | "circle";
 type AvatarCrop = { source: string; width: number; height: number; zoom: number; x: number; y: number };
 type MediaItem = { id: string; name: string; type: string; src: string };
 type StoredMedia = { id: string; name: string; type: string; blob: Blob };
@@ -218,7 +218,7 @@ export default function Home() {
       if (saved.handle) setHandle(saved.handle);
       if (saved.mode === "cards" || saved.mode === "article") setMode(saved.mode);
       if (saved.avatar) setAvatar(saved.avatar);
-      if (saved.avatarShape === "square" || saved.avatarShape === "dino" || saved.avatarShape === "circle") {
+      if (saved.avatarShape === "square" || saved.avatarShape === "dino" || saved.avatarShape === "dog" || saved.avatarShape === "circle") {
         setAvatarShape(saved.avatarShape);
       }
     } catch {
@@ -335,7 +335,8 @@ export default function Home() {
 
   const chooseAvatarShape = (shape: AvatarShape) => {
     setAvatarShape(shape);
-    notify(`已切换为${shape === "square" ? "方形" : shape === "dino" ? "小恐龙" : "圆形"}头像`);
+    const shapeLabel = shape === "square" ? "方形" : shape === "dino" ? "小恐龙" : shape === "dog" ? "小狗" : "圆形";
+    notify(`已切换为${shapeLabel}头像`);
   };
 
   const insertMediaMarker = (id: string) => {
@@ -498,6 +499,7 @@ export default function Home() {
               {([
                 ["square", "方形"],
                 ["dino", "小恐龙"],
+                ["dog", "小狗"],
                 ["circle", "圆形"],
               ] as Array<[AvatarShape, string]>).map(([shape, label]) => (
                 <button
