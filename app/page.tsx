@@ -35,7 +35,7 @@ const Underline = glyph("U̲");
 type Mode = "cards" | "article";
 type ThemeName = "paper" | "cream" | "mist" | "night";
 type AvatarShape = "square" | "dino" | "circle";
-type AvatarPosition = { x: number; y: number };
+type AvatarCrop = { source: string; width: number; height: number; zoom: number; x: number; y: number };
 type MediaItem = { id: string; name: string; type: string; src: string };
 type StoredMedia = { id: string; name: string; type: string; blob: Blob };
 type SavedDraft = {
@@ -45,7 +45,6 @@ type SavedDraft = {
   mode?: Mode;
   avatar?: string | null;
   avatarShape?: AvatarShape;
-  avatarPosition?: AvatarPosition;
 };
 
 const mediaMarkerPattern = /^\[\[image:([^\]]+)\]\]$/;
@@ -180,7 +179,7 @@ export default function Home() {
   const [handle, setHandle] = useState("@ideatopage");
   const [avatar, setAvatar] = useState<string | null>(null);
   const [avatarShape, setAvatarShape] = useState<AvatarShape>("circle");
-  const [avatarPosition, setAvatarPosition] = useState<AvatarPosition>({ x: 50, y: 42 });
+  const [avatarCrop, setAvatarCrop] = useState<AvatarCrop | null>(null);
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [accent, setAccent] = useState("#2563eb");
   const [theme, setTheme] = useState<ThemeName>("paper");
@@ -192,12 +191,19 @@ export default function Home() {
   const cardContainerRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
+  const cropImageRef = useRef<HTMLImageElement>(null);
+  const cropDragRef = useRef<{ pointerId: number; clientX: number; clientY: number; x: number; y: number } | null>(null);
   const pages = useMemo(() => paginate(content), [content]);
   const visiblePages = mode === "article" ? [pages.flat()] : pages;
   const activeTheme = themeOptions.find((option) => option.id === theme)!;
   const cardInk = theme === "night" ? "#f7f8fb" : "#1a2433";
   const avatarLetter = name.trim().slice(0, 1) || "灵";
-  const avatarImageStyle = { objectPosition: `${avatarPosition.x}% ${avatarPosition.y}%` };
+  const cropViewport = 280;
+  const cropBaseScale = avatarCrop ? Math.max(cropViewport / avatarCrop.width, cropViewport / avatarCrop.height) : 1;
+  const cropWidth = avatarCrop ? avatarCrop.width * cropBaseScale * avatarCrop.zoom : cropViewport;
+  const cropHeight = avatarCrop ? avatarCrop.height * cropBaseScale * avatarCrop.zoom : cropViewport;
+  const cropPanX = Math.max(0, (cropWidth - cropViewport) / 2);
+  const cropPanY = Math.max(0, (cropHeight - cropViewport) / 2);
 
   const notify = (message: string) => {
     setToast(message);
@@ -215,9 +221,6 @@ export default function Home() {
       if (saved.avatarShape === "square" || saved.avatarShape === "dino" || saved.avatarShape === "circle") {
         setAvatarShape(saved.avatarShape);
       }
-      if (saved.avatarPosition && Number.isFinite(saved.avatarPosition.x) && Number.isFinite(saved.avatarPosition.y)) {
-        setAvatarPosition(saved.avatarPosition);
-      }
     } catch {
       // A damaged local draft should never prevent opening the editor.
     } finally {
@@ -234,10 +237,10 @@ export default function Home() {
   useEffect(() => {
     if (!draftReady) return;
     const timer = window.setTimeout(() => {
-      localStorage.setItem("idea-to-page-draft", JSON.stringify({ content, name, handle, mode, avatar, avatarShape, avatarPosition }));
+      localStorage.setItem("idea-to-page-draft", JSON.stringify({ content, name, handle, mode, avatar, avatarShape }));
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [avatar, avatarPosition, avatarShape, content, draftReady, handle, mode, name]);
+  }, [avatar, avatarShape, content, draftReady, handle, mode, name]);
 
   const wrapSelection = (before: string, after = before) => {
     const editor = editorRef.current;
@@ -279,25 +282,50 @@ export default function Home() {
     reader.onload = () => {
       const source = String(reader.result);
       const image = new Image();
-      image.onerror = () => notify("头像处理失败，请换一张图片试试");
+      image.onerror = () => notify("头像读取失败，请换一张图片试试");
       image.onload = () => {
-        const limit = 720;
-        const scale = Math.min(1, limit / Math.max(image.width, image.height));
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.max(1, Math.round(image.width * scale));
-        canvas.height = Math.max(1, Math.round(image.height * scale));
-        const context = canvas.getContext("2d");
-        if (!context) {
-          notify("头像处理失败，请换一张图片试试");
-          return;
-        }
-        context.drawImage(image, 0, 0, canvas.width, canvas.height);
-        setAvatar(canvas.toDataURL("image/jpeg", 0.9));
-        notify("头像已更新");
+        setAvatarCrop({ source, width: image.naturalWidth, height: image.naturalHeight, zoom: 1, x: 0, y: 0 });
       };
       image.src = source;
     };
     reader.readAsDataURL(file);
+  };
+
+  const moveAvatarCrop = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = cropDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !avatarCrop) return;
+    const nextX = cropPanX ? Math.max(-100, Math.min(100, drag.x + ((event.clientX - drag.clientX) / cropPanX) * 100)) : 0;
+    const nextY = cropPanY ? Math.max(-100, Math.min(100, drag.y + ((event.clientY - drag.clientY) / cropPanY) * 100)) : 0;
+    setAvatarCrop((current) => current ? { ...current, x: nextX, y: nextY } : current);
+  };
+
+  const finishAvatarCropDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (cropDragRef.current?.pointerId === event.pointerId) cropDragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const applyAvatarCrop = () => {
+    if (!avatarCrop || !cropImageRef.current) return;
+    const size = 720;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      notify("头像处理失败，请重试");
+      return;
+    }
+    const baseScale = Math.max(size / avatarCrop.width, size / avatarCrop.height);
+    const width = avatarCrop.width * baseScale * avatarCrop.zoom;
+    const height = avatarCrop.height * baseScale * avatarCrop.zoom;
+    const maxX = Math.max(0, (width - size) / 2);
+    const maxY = Math.max(0, (height - size) / 2);
+    const left = (size - width) / 2 + (avatarCrop.x / 100) * maxX;
+    const top = (size - height) / 2 + (avatarCrop.y / 100) * maxY;
+    context.drawImage(cropImageRef.current, left, top, width, height);
+    setAvatar(canvas.toDataURL("image/jpeg", 0.92));
+    setAvatarCrop(null);
+    notify("头像范围已应用");
   };
 
   const removeAvatar = () => {
@@ -443,7 +471,7 @@ export default function Home() {
                 title="点击更换头像"
                 onClick={() => avatarInputRef.current?.click()}
               >
-                {avatar ? <img src={avatar} alt="" style={avatarImageStyle} /> : avatarLetter}
+                {avatar ? <img src={avatar} alt="" /> : avatarLetter}
                 <span className="avatar-edit-badge">更换</span>
               </button>
               <input
@@ -484,14 +512,6 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            {avatar && (
-              <div className="avatar-position-controls" aria-label="头像位置调整">
-                <span className="avatar-position-title">头像位置</span>
-                <label>左右<input type="range" min="0" max="100" value={avatarPosition.x} onChange={(event) => setAvatarPosition((current) => ({ ...current, x: Number(event.target.value) }))} /></label>
-                <label>上下<input type="range" min="0" max="100" value={avatarPosition.y} onChange={(event) => setAvatarPosition((current) => ({ ...current, y: Number(event.target.value) }))} /></label>
-                <button type="button" onClick={() => setAvatarPosition({ x: 50, y: 42 })}>复位</button>
-              </div>
-            )}
             </>
           )}
 
@@ -575,7 +595,7 @@ export default function Home() {
                 style={{ "--card-bg": activeTheme.color, "--card-ink": cardInk, "--card-accent": accent, "--copy-size": `${fontSize}px`, "--copy-leading": lineHeight } as React.CSSProperties}
               >
                 <div className="card-profile">
-                  <div className={`avatar avatar-${avatarShape}`}>{avatar ? <img src={avatar} alt="" style={avatarImageStyle} /> : avatarLetter}</div>
+                  <div className={`avatar avatar-${avatarShape}`}>{avatar ? <img src={avatar} alt="" /> : avatarLetter}</div>
                   <div><strong>{name || "未命名"}</strong><span>{handle || "@yourname"}</span></div>
                   <Sparkles className="profile-mark" size={17} />
                 </div>
@@ -593,6 +613,46 @@ export default function Home() {
           )}
         </div>
       </section>
+
+      {avatarCrop && (
+        <div className="avatar-crop-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAvatarCrop(null); }}>
+          <section className="avatar-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="avatar-crop-title">
+            <header>
+              <div><h2 id="avatar-crop-title">选择头像范围</h2><p>拖动照片选择人物位置，滑动下方控制缩放</p></div>
+              <button type="button" aria-label="取消头像裁剪" onClick={() => setAvatarCrop(null)}>×</button>
+            </header>
+            <div
+              className={`avatar-crop-viewport avatar-${avatarShape}`}
+              onPointerDown={(event) => {
+                event.currentTarget.setPointerCapture(event.pointerId);
+                cropDragRef.current = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, x: avatarCrop.x, y: avatarCrop.y };
+              }}
+              onPointerMove={moveAvatarCrop}
+              onPointerUp={finishAvatarCropDrag}
+              onPointerCancel={finishAvatarCropDrag}
+            >
+              <img
+                ref={cropImageRef}
+                src={avatarCrop.source}
+                alt="头像裁剪预览"
+                draggable={false}
+                style={{
+                  width: cropWidth,
+                  height: cropHeight,
+                  left: (cropViewport - cropWidth) / 2 + (avatarCrop.x / 100) * cropPanX,
+                  top: (cropViewport - cropHeight) / 2 + (avatarCrop.y / 100) * cropPanY,
+                }}
+              />
+              <span>拖动照片调整范围</span>
+            </div>
+            <label className="avatar-crop-zoom">缩放<input type="range" min="1" max="3" step="0.01" value={avatarCrop.zoom} onChange={(event) => setAvatarCrop((current) => current ? { ...current, zoom: Number(event.target.value), x: Math.max(-100, Math.min(100, current.x)), y: Math.max(-100, Math.min(100, current.y)) } : current)} /><b>{Math.round(avatarCrop.zoom * 100)}%</b></label>
+            <div className="avatar-crop-actions">
+              <button className="secondary" type="button" onClick={() => setAvatarCrop(null)}>取消</button>
+              <button className="primary" type="button" onClick={applyAvatarCrop}>使用此范围</button>
+            </div>
+          </section>
+        </div>
+      )}
 
       <div className={toast ? "toast show" : "toast"} aria-live="polite"><Check size={15} />{toast}</div>
     </main>
