@@ -35,6 +35,9 @@ const Underline = glyph("U̲");
 type Mode = "cards" | "article";
 type ThemeName = "paper" | "cream" | "mist" | "night";
 type AvatarShape = "square" | "dino" | "circle";
+type AvatarPosition = { x: number; y: number };
+type MediaItem = { id: string; name: string; type: string; src: string };
+type StoredMedia = { id: string; name: string; type: string; blob: Blob };
 type SavedDraft = {
   content?: string;
   name?: string;
@@ -42,7 +45,52 @@ type SavedDraft = {
   mode?: Mode;
   avatar?: string | null;
   avatarShape?: AvatarShape;
+  avatarPosition?: AvatarPosition;
 };
+
+const mediaMarkerPattern = /^\[\[image:([^\]]+)\]\]$/;
+
+function openMediaDatabase() {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open("idea-to-page-media", 1);
+    request.onerror = () => reject(request.error);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains("media")) {
+        request.result.createObjectStore("media", { keyPath: "id" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+  });
+}
+
+async function readStoredMedia() {
+  const database = await openMediaDatabase();
+  return new Promise<StoredMedia[]>((resolve, reject) => {
+    const request = database.transaction("media", "readonly").objectStore("media").getAll();
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result as StoredMedia[]);
+  }).finally(() => database.close());
+}
+
+async function storeMedia(item: StoredMedia) {
+  const database = await openMediaDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const request = database.transaction("media", "readwrite").objectStore("media").put(item);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve();
+  });
+  database.close();
+}
+
+async function deleteStoredMedia(id: string) {
+  const database = await openMediaDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const request = database.transaction("media", "readwrite").objectStore("media").delete(id);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve();
+  });
+  database.close();
+}
 
 const starter = `# 把今天的灵感，变成好看的内容
 
@@ -73,7 +121,9 @@ function paginate(source: string) {
   let page: string[] = [];
   let weight = 0;
   blocks.forEach((block) => {
-    const blockWeight = Math.max(1, Math.ceil(block.length / 55)) + (block.startsWith("# ") ? 2 : 0);
+    const blockWeight = mediaMarkerPattern.test(block.trim())
+      ? 5
+      : Math.max(1, Math.ceil(block.length / 55)) + (block.startsWith("# ") ? 2 : 0);
     if (page.length && weight + blockWeight > 8) {
       pages.push(page);
       page = [];
@@ -96,10 +146,21 @@ function InlineText({ text }: { text: string }) {
   });
 }
 
-function MarkdownBlocks({ blocks }: { blocks: string[] }) {
+function MarkdownBlocks({ blocks, media }: { blocks: string[]; media: MediaItem[] }) {
   return blocks.flatMap((block, blockIndex) =>
     block.split("\n").map((line, lineIndex) => {
       const key = `${blockIndex}-${lineIndex}`;
+      const mediaMatch = line.trim().match(mediaMarkerPattern);
+      if (mediaMatch) {
+        const item = media.find((candidate) => candidate.id === mediaMatch[1]);
+        if (!item) return <div className="content-image-missing" key={key}>图片暂不可用，请重新添加</div>;
+        return (
+          <figure className="content-image" key={key}>
+            <img src={item.src} alt={item.name} />
+            <figcaption>{item.name}{item.type === "image/gif" ? " · 动态图片" : ""}</figcaption>
+          </figure>
+        );
+      }
       if (line.startsWith("# ")) return <h3 key={key}><InlineText text={line.slice(2)} /></h3>;
       if (line.startsWith("## ")) return <h4 key={key}><InlineText text={line.slice(3)} /></h4>;
       if (line.startsWith("> ")) return <blockquote key={key}><InlineText text={line.slice(2)} /></blockquote>;
@@ -119,6 +180,8 @@ export default function Home() {
   const [handle, setHandle] = useState("@ideatopage");
   const [avatar, setAvatar] = useState<string | null>(null);
   const [avatarShape, setAvatarShape] = useState<AvatarShape>("circle");
+  const [avatarPosition, setAvatarPosition] = useState<AvatarPosition>({ x: 50, y: 42 });
+  const [media, setMedia] = useState<MediaItem[]>([]);
   const [accent, setAccent] = useState("#2563eb");
   const [theme, setTheme] = useState<ThemeName>("paper");
   const [fontSize, setFontSize] = useState(17);
@@ -128,11 +191,18 @@ export default function Home() {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const cardContainerRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
   const pages = useMemo(() => paginate(content), [content]);
   const visiblePages = mode === "article" ? [pages.flat()] : pages;
   const activeTheme = themeOptions.find((option) => option.id === theme)!;
   const cardInk = theme === "night" ? "#f7f8fb" : "#1a2433";
   const avatarLetter = name.trim().slice(0, 1) || "灵";
+  const avatarImageStyle = { objectPosition: `${avatarPosition.x}% ${avatarPosition.y}%` };
+
+  const notify = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 1800);
+  };
 
   useEffect(() => {
     try {
@@ -145,6 +215,9 @@ export default function Home() {
       if (saved.avatarShape === "square" || saved.avatarShape === "dino" || saved.avatarShape === "circle") {
         setAvatarShape(saved.avatarShape);
       }
+      if (saved.avatarPosition && Number.isFinite(saved.avatarPosition.x) && Number.isFinite(saved.avatarPosition.y)) {
+        setAvatarPosition(saved.avatarPosition);
+      }
     } catch {
       // A damaged local draft should never prevent opening the editor.
     } finally {
@@ -153,17 +226,18 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    readStoredMedia()
+      .then((items) => setMedia(items.map((item) => ({ ...item, src: URL.createObjectURL(item.blob) }))))
+      .catch(() => notify("本地图片记录读取失败，可重新添加图片"));
+  }, []);
+
+  useEffect(() => {
     if (!draftReady) return;
     const timer = window.setTimeout(() => {
-      localStorage.setItem("idea-to-page-draft", JSON.stringify({ content, name, handle, mode, avatar, avatarShape }));
+      localStorage.setItem("idea-to-page-draft", JSON.stringify({ content, name, handle, mode, avatar, avatarShape, avatarPosition }));
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [avatar, avatarShape, content, draftReady, handle, mode, name]);
-
-  const notify = (message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(""), 1800);
-  };
+  }, [avatar, avatarPosition, avatarShape, content, draftReady, handle, mode, name]);
 
   const wrapSelection = (before: string, after = before) => {
     const editor = editorRef.current;
@@ -234,6 +308,54 @@ export default function Home() {
   const chooseAvatarShape = (shape: AvatarShape) => {
     setAvatarShape(shape);
     notify(`已切换为${shape === "square" ? "方形" : shape === "dino" ? "小恐龙" : "圆形"}头像`);
+  };
+
+  const insertMediaMarker = (id: string) => {
+    const editor = editorRef.current;
+    const position = editor?.selectionStart ?? content.length;
+    const marker = `\n\n[[image:${id}]]\n\n`;
+    setContent((current) => current.slice(0, position) + marker + current.slice(position));
+    window.requestAnimationFrame(() => {
+      editor?.focus();
+      editor?.setSelectionRange(position + marker.length, position + marker.length);
+    });
+  };
+
+  const addMedia = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (!files.length) return;
+    const invalid = files.find((file) => !file.type.startsWith("image/"));
+    if (invalid) {
+      notify("请选择图片或 GIF 文件");
+      return;
+    }
+    if (files.some((file) => file.size > 15 * 1024 * 1024)) {
+      notify("单张图片请控制在 15MB 以内");
+      return;
+    }
+
+    try {
+      const added: MediaItem[] = [];
+      for (const file of files) {
+        const id = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        await storeMedia({ id, name: file.name, type: file.type, blob: file });
+        added.push({ id, name: file.name, type: file.type, src: URL.createObjectURL(file) });
+      }
+      setMedia((current) => [...current, ...added]);
+      added.forEach((item) => insertMediaMarker(item.id));
+      notify(added.some((item) => item.type === "image/gif") ? "动态图片已添加" : `${added.length} 张图片已添加`);
+    } catch {
+      notify("图片保存失败，请换一张较小的图片试试");
+    }
+  };
+
+  const removeMedia = async (item: MediaItem) => {
+    setMedia((current) => current.filter((candidate) => candidate.id !== item.id));
+    setContent((current) => current.replace(new RegExp(`\\n*\\[\\[image:${item.id}\\]\\]\\n*`, "g"), "\n\n"));
+    URL.revokeObjectURL(item.src);
+    await deleteStoredMedia(item.id).catch(() => undefined);
+    notify("图片已移除");
   };
 
   const download = async () => {
@@ -321,7 +443,7 @@ export default function Home() {
                 title="点击更换头像"
                 onClick={() => avatarInputRef.current?.click()}
               >
-                {avatar ? <img src={avatar} alt="" /> : avatarLetter}
+                {avatar ? <img src={avatar} alt="" style={avatarImageStyle} /> : avatarLetter}
                 <span className="avatar-edit-badge">更换</span>
               </button>
               <input
@@ -362,6 +484,14 @@ export default function Home() {
                 </button>
               ))}
             </div>
+            {avatar && (
+              <div className="avatar-position-controls" aria-label="头像位置调整">
+                <span className="avatar-position-title">头像位置</span>
+                <label>左右<input type="range" min="0" max="100" value={avatarPosition.x} onChange={(event) => setAvatarPosition((current) => ({ ...current, x: Number(event.target.value) }))} /></label>
+                <label>上下<input type="range" min="0" max="100" value={avatarPosition.y} onChange={(event) => setAvatarPosition((current) => ({ ...current, y: Number(event.target.value) }))} /></label>
+                <button type="button" onClick={() => setAvatarPosition({ x: 50, y: 42 })}>复位</button>
+              </div>
+            )}
             </>
           )}
 
@@ -373,10 +503,26 @@ export default function Home() {
             <button className="tool-button" title="下划线" onClick={() => wrapSelection("<u>", "</u>")}><Underline /></button>
             <button className="tool-button" title="重点引用" onClick={() => prefixLine("> ")}><Quote /></button>
             <button className="tool-button" title="高亮" onClick={() => wrapSelection("==")}><Highlighter /></button>
-            <button className="tool-button" title="插入图片" onClick={() => notify("图片插入将在下一版本开放")}><ImagePlus /></button>
+            <button className="tool-button" title="插入图片或 GIF" onClick={() => mediaInputRef.current?.click()}><ImagePlus /></button>
+            <input ref={mediaInputRef} className="visually-hidden" type="file" accept="image/*,.gif" multiple onChange={addMedia} />
             <button className="tool-button" title="查找" onClick={() => { editorRef.current?.focus(); notify("可使用 ⌘F 在编辑器内查找"); }}><Search /></button>
             <button className={settingsOpen ? "tool-button active" : "tool-button"} title="设计设置" onClick={() => setSettingsOpen(!settingsOpen)}><Settings2 /></button>
           </div>
+
+          {media.length > 0 && (
+            <div className="media-strip" aria-label="已添加图片">
+              <span>已添加</span>
+              {media.map((item) => (
+                <div className="media-chip" key={item.id}>
+                  <button className="media-insert" type="button" title="再次插入到光标处" onClick={() => insertMediaMarker(item.id)}>
+                    <img src={item.src} alt="" />
+                    {item.type === "image/gif" && <b>GIF</b>}
+                  </button>
+                  <button className="media-remove" type="button" aria-label={`移除 ${item.name}`} onClick={() => removeMedia(item)}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
 
           {settingsOpen && (
             <div className="settings-panel">
@@ -429,11 +575,11 @@ export default function Home() {
                 style={{ "--card-bg": activeTheme.color, "--card-ink": cardInk, "--card-accent": accent, "--copy-size": `${fontSize}px`, "--copy-leading": lineHeight } as React.CSSProperties}
               >
                 <div className="card-profile">
-                  <div className={`avatar avatar-${avatarShape}`}>{avatar ? <img src={avatar} alt="" /> : avatarLetter}</div>
+                  <div className={`avatar avatar-${avatarShape}`}>{avatar ? <img src={avatar} alt="" style={avatarImageStyle} /> : avatarLetter}</div>
                   <div><strong>{name || "未命名"}</strong><span>{handle || "@yourname"}</span></div>
                   <Sparkles className="profile-mark" size={17} />
                 </div>
-                <div className="card-copy"><MarkdownBlocks blocks={page} /></div>
+                <div className="card-copy"><MarkdownBlocks blocks={page} media={media} /></div>
                 <footer><span>IDEA TO PAGE</span><span>{String(index + 1).padStart(2, "0")} / {String(visiblePages.length).padStart(2, "0")}</span></footer>
               </article>
             ))}
