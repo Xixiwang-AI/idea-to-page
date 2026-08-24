@@ -259,7 +259,7 @@ h1, h2 { margin: 0; font-size: 22px; line-height: 1.08; letter-spacing: -.02em; 
 .card-profile .avatar-dino { width: 50px; height: 50px; margin: -4px; font-size: 16px; }
 .profile-mark { margin-left: auto; color: var(--card-accent); }
 .card-copy { flex: 1; padding-top: 30px; overflow: hidden; }
-.card-copy h3 { margin: 0 0 23px; color: var(--card-ink); font-size: clamp(21.6px, 2.4vw, 28.8px); line-height: 1.18; letter-spacing: -.045em; }
+.card-copy h3 { margin: 0 0 23px; color: var(--card-ink); font-size: 20px; font-weight: 700; line-height: 1.18; letter-spacing: -.045em; }
 .card-copy h4 { margin: 17px 0 9px; padding-left: 10px; border-left: 4px solid var(--card-accent); color: var(--card-ink); font-size: calc(var(--copy-size) * 1.12); line-height: 1.35; }
 .card-copy p { margin: 0 0 10px; color: var(--card-ink); font-size: var(--copy-size); line-height: var(--copy-leading); }
 .card-copy strong { font-weight: 850; }
@@ -277,7 +277,7 @@ h1, h2 { margin: 0; font-size: 22px; line-height: 1.08; letter-spacing: -.02em; 
 .article-stage .pages { display: block; max-width: 700px; }
 .article-card { min-height: 980px; aspect-ratio: auto; padding: 52px 58px; }
 .article-card .card-copy { overflow: visible; padding-top: 46px; }
-.article-card .card-copy h3 { font-size: 30.4px; }
+.article-card .card-copy h3 { font-size: 20px; font-weight: 700; }
 .article-card footer { margin-top: 40px; }
 .preview-note { position: sticky; top: 112px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 9px; min-width: 180px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: var(--paper); box-shadow: var(--shadow-soft); }
 .preview-note strong, .preview-note span { display: block; }
@@ -338,7 +338,7 @@ h1, h2 { margin: 0; font-size: 22px; line-height: 1.08; letter-spacing: -.02em; 
   .preview-topbar h2 { font-size: 19px; }
   .preview-stage { padding-inline: 10px; }
   .share-card { padding: 26px; }
-  .card-copy h3 { font-size: 22.4px; }
+  .card-copy h3 { font-size: 20px; font-weight: 700; }
   .settings-panel { top: 98px; grid-template-columns: 1fr; }
   .settings-title, .theme-swatches { grid-column: 1; }
   .avatar-crop-backdrop { padding: 8px; }
