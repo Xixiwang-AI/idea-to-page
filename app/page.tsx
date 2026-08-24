@@ -23,6 +23,8 @@ const Moon = glyph("◐");
 const Palette = glyph("◉");
 const PanelLeftClose = glyph("◀");
 const PanelLeftOpen = glyph("☷");
+const PanelRightClose = glyph("»");
+const PanelRightOpen = glyph("«");
 const Plus = glyph("+");
 const Quote = glyph("❞");
 const RotateCcw = glyph("↶");
@@ -33,6 +35,7 @@ const Sun = glyph("☀");
 const Underline = glyph("U̲");
 
 type Mode = "cards" | "article";
+type CardSize = "1242x1660" | "1080x1440" | "1080x1920";
 type ThemeName = "paper" | "cream" | "mist" | "night";
 type AvatarShape = "square" | "dino" | "dog" | "circle";
 type AvatarCrop = { source: string; width: number; height: number; zoom: number; x: number; y: number };
@@ -114,6 +117,12 @@ const themeOptions: Array<{ id: ThemeName; label: string; color: string }> = [
   { id: "night", label: "深夜", color: "#17202f" },
 ];
 
+const sizeOptions: Array<{ id: CardSize; label: string; width: number; height: number }> = [
+  { id: "1242x1660", label: "1242 × 1660", width: 1242, height: 1660 },
+  { id: "1080x1440", label: "1080 × 1440", width: 1080, height: 1440 },
+  { id: "1080x1920", label: "1080 × 1920", width: 1080, height: 1920 },
+];
+
 function paginate(source: string) {
   const blocks = source.trim().split(/\n\s*\n/).filter(Boolean);
   const pages: string[][] = [];
@@ -186,6 +195,8 @@ export default function Home() {
   const [fontSize, setFontSize] = useState(17);
   const [lineHeight, setLineHeight] = useState(1.75);
   const [cardPadding, setCardPadding] = useState(38);
+  const [cardSize, setCardSize] = useState<CardSize>("1080x1440");
+  const [previewOpen, setPreviewOpen] = useState(true);
   const [toast, setToast] = useState("");
   const [draftReady, setDraftReady] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
@@ -197,6 +208,7 @@ export default function Home() {
   const pages = useMemo(() => paginate(content), [content]);
   const visiblePages = mode === "article" ? [pages.flat()] : pages;
   const activeTheme = themeOptions.find((option) => option.id === theme)!;
+  const activeSize = sizeOptions.find((option) => option.id === cardSize)!;
   const cardInk = theme === "night" ? "#f7f8fb" : "#1a2433";
   const avatarLetter = name.trim().slice(0, 1) || "灵";
   const cropViewport = 280;
@@ -394,7 +406,9 @@ export default function Home() {
     notify("正在生成高清图片…");
     const { toPng } = await import("html-to-image");
     for (let index = 0; index < cards.length; index += 1) {
-      const dataUrl = await toPng(cards[index], { pixelRatio: 2, cacheBust: true });
+      const dataUrl = await toPng(cards[index], mode === "cards"
+        ? { cacheBust: true, pixelRatio: 1, canvasWidth: activeSize.width, canvasHeight: activeSize.height }
+        : { cacheBust: true, pixelRatio: 2 });
       const link = document.createElement("a");
       link.download = `灵感成页-${String(index + 1).padStart(2, "0")}.png`;
       link.href = dataUrl;
@@ -418,7 +432,7 @@ export default function Home() {
   };
 
   return (
-    <main className={dark ? "app dark" : "app"}>
+    <main className={`app${dark ? " dark" : ""}${previewOpen ? "" : " preview-collapsed"}`}>
       <aside className={historyOpen ? "history-sidebar open" : "history-sidebar"} aria-label="历史记录">
         {!historyOpen && (
           <button className="history-tab" aria-label="打开历史记录" onClick={() => setHistoryOpen(true)}>
@@ -459,6 +473,7 @@ export default function Home() {
           <div className="brand-actions">
             <button className="square" aria-label="新建作品" title="新建作品" onClick={resetProject}><Plus size={18} /></button>
             <button className="square" aria-label="切换主题" title="切换界面主题" onClick={() => setDark(!dark)}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
+            {!previewOpen && <button className="square" aria-label="打开预览" title="打开预览" onClick={() => setPreviewOpen(true)}><PanelRightOpen size={18} /></button>}
           </div>
         </header>
 
@@ -554,6 +569,24 @@ export default function Home() {
               <label>字号<input type="range" min="14" max="22" value={fontSize} onChange={(event) => setFontSize(Number(event.target.value))} /><b>{fontSize}</b></label>
               <label>行距<input type="range" min="1.4" max="2.1" step=".05" value={lineHeight} onChange={(event) => setLineHeight(Number(event.target.value))} /><b>{lineHeight}</b></label>
               <label>页边距<input type="range" min="20" max="64" step="2" value={cardPadding} onChange={(event) => setCardPadding(Number(event.target.value))} /><b>{cardPadding}</b></label>
+              {mode === "cards" && (
+                <div className="size-control">
+                  <span className="size-label">图片尺寸</span>
+                  <div className="size-options">
+                    {sizeOptions.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        className={cardSize === option.id ? "selected" : ""}
+                        aria-pressed={cardSize === option.id}
+                        onClick={() => { setCardSize(option.id); notify(`已切换为 ${option.label}`); }}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="theme-swatches">
                 {themeOptions.map((option) => (
                   <button key={option.id} className={theme === option.id ? "selected" : ""} onClick={() => setTheme(option.id)} title={option.label}>
@@ -585,6 +618,7 @@ export default function Home() {
             <span className="subtle">{mode === "cards" ? "自动分页已开启" : "公众号长文样式"}</span>
           </div>
           <div className="topbar-actions">
+            <button className="square" aria-label="收起预览" title="收起预览" onClick={() => setPreviewOpen(false)}><PanelRightClose size={18} /></button>
             <button className="secondary" onClick={() => { setContent(starter); notify("示例内容已恢复"); }}><RotateCcw size={16} />恢复示例</button>
             <button className="primary" onClick={download}><Download size={17} />{mode === "cards" && pages.length > 1 ? "批量下载" : "下载图片"}</button>
           </div>
@@ -603,6 +637,7 @@ export default function Home() {
                   "--copy-size": `${fontSize}px`,
                   "--copy-leading": lineHeight,
                   padding: mode === "article" ? `${cardPadding + 14}px ${cardPadding + 20}px` : `${cardPadding}px`,
+                  aspectRatio: mode === "article" ? undefined : `${activeSize.width} / ${activeSize.height}`,
                 } as React.CSSProperties}
               >
                 <div className="card-profile">
@@ -618,7 +653,7 @@ export default function Home() {
           {mode === "cards" && (
             <aside className="preview-note">
               <FileImage size={18} />
-              <div><strong>高清 PNG</strong><span>1080 × 1440 比例</span></div>
+              <div><strong>高清 PNG</strong><span>{activeSize.label}</span></div>
               <ChevronRight size={16} />
             </aside>
           )}

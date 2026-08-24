@@ -36,6 +36,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   --shadow-soft: 0 10px 25px rgba(0, 0, 0, .28);
 }
 
+.app.preview-collapsed { grid-template-columns: 48px 1fr; }
+.app.preview-collapsed .preview-panel { display: none; }
+
 .history-sidebar {
   position: relative;
   z-index: 20;
@@ -185,6 +188,12 @@ h1, h2 { margin: 0; font-size: 22px; line-height: 1.08; letter-spacing: -.02em; 
 .theme-swatches button > span { position: absolute; inset: 3px; border: 1px solid rgba(23, 32, 47, .08); border-radius: 50%; }
 .theme-swatches button svg { position: relative; z-index: 2; color: #2563eb; filter: drop-shadow(0 1px 1px #fff); }
 .theme-swatches button.selected { border-color: #2563eb; }
+.size-control { grid-column: 1 / -1; display: grid; gap: 6px; }
+.size-label { color: var(--muted); font-size: 11px; font-weight: 700; }
+.size-options { display: flex; gap: 6px; }
+.size-options button { flex: 1; min-width: 0; height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); background: var(--control); font-size: 11px; font-weight: 750; white-space: nowrap; }
+.size-options button:hover { border-color: var(--ink); color: var(--ink); }
+.size-options button.selected { color: var(--paper); border-color: var(--ink); background: var(--ink); }
 
 .editor-wrap { position: relative; flex: 1; display: flex; min-height: 420px; }
 .editor {
