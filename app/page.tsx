@@ -473,7 +473,6 @@ export default function Home() {
           <div className="brand-actions">
             <button className="square" aria-label="新建作品" title="新建作品" onClick={resetProject}><Plus size={18} /></button>
             <button className="square" aria-label="切换主题" title="切换界面主题" onClick={() => setDark(!dark)}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
-            {!previewOpen && <button className="square" aria-label="打开预览" title="打开预览" onClick={() => setPreviewOpen(true)}><PanelRightOpen size={18} /></button>}
           </div>
         </header>
 
@@ -612,52 +611,60 @@ export default function Home() {
       </section>
 
       <section className="preview-panel">
-        <header className="preview-topbar">
-          <div>
-            <h2>预览与下载</h2>
-            <span className="subtle">{mode === "cards" ? "自动分页已开启" : "公众号长文样式"}</span>
-          </div>
-          <div className="topbar-actions">
-            <button className="square" aria-label="收起预览" title="收起预览" onClick={() => setPreviewOpen(false)}><PanelRightClose size={18} /></button>
-            <button className="secondary" onClick={() => { setContent(starter); notify("示例内容已恢复"); }}><RotateCcw size={16} />恢复示例</button>
-            <button className="primary" onClick={download}><Download size={17} />{mode === "cards" && pages.length > 1 ? "批量下载" : "下载图片"}</button>
-          </div>
-        </header>
+        {previewOpen ? (
+          <>
+            <header className="preview-topbar">
+              <div>
+                <h2>预览与下载</h2>
+                <span className="subtle">{mode === "cards" ? "自动分页已开启" : "公众号长文样式"}</span>
+              </div>
+              <div className="topbar-actions">
+                <button className="square" aria-label="收起预览" title="收起预览" onClick={() => setPreviewOpen(false)}><PanelRightClose size={18} /></button>
+                <button className="secondary" onClick={() => { setContent(starter); notify("示例内容已恢复"); }}><RotateCcw size={16} />恢复示例</button>
+                <button className="primary" onClick={download}><Download size={17} />{mode === "cards" && pages.length > 1 ? "批量下载" : "下载图片"}</button>
+              </div>
+            </header>
 
-        <div className={mode === "article" ? "preview-stage article-stage" : "preview-stage"} ref={cardContainerRef}>
-          <div className="pages">
-            {visiblePages.map((page, index) => (
-              <article
-                className={mode === "article" ? "share-card article-card" : "share-card"}
-                key={index}
-                style={{
-                  "--card-bg": activeTheme.color,
-                  "--card-ink": cardInk,
-                  "--card-accent": accent,
-                  "--copy-size": `${fontSize}px`,
-                  "--copy-leading": lineHeight,
-                  padding: mode === "article" ? `${cardPadding + 14}px ${cardPadding + 20}px` : `${cardPadding}px`,
-                  aspectRatio: mode === "article" ? undefined : `${activeSize.width} / ${activeSize.height}`,
-                } as React.CSSProperties}
-              >
-                <div className="card-profile">
-                  <div className={`avatar avatar-${avatarShape}`}>{avatar ? <img src={avatar} alt="" /> : avatarLetter}</div>
-                  <div><strong>{name || "未命名"}</strong><span>{handle || "@yourname"}</span></div>
-                  <Sparkles className="profile-mark" size={17} />
-                </div>
-                <div className="card-copy"><MarkdownBlocks blocks={page} media={media} /></div>
-                <footer><span>IDEA TO PAGE</span><span>{String(index + 1).padStart(2, "0")} / {String(visiblePages.length).padStart(2, "0")}</span></footer>
-              </article>
-            ))}
+            <div className={mode === "article" ? "preview-stage article-stage" : "preview-stage"} ref={cardContainerRef}>
+              <div className="pages">
+                {visiblePages.map((page, index) => (
+                  <article
+                    className={mode === "article" ? "share-card article-card" : "share-card"}
+                    key={index}
+                    style={{
+                      "--card-bg": activeTheme.color,
+                      "--card-ink": cardInk,
+                      "--card-accent": accent,
+                      "--copy-size": `${fontSize}px`,
+                      "--copy-leading": lineHeight,
+                      padding: mode === "article" ? `${cardPadding + 14}px ${cardPadding + 20}px` : `${cardPadding}px`,
+                      aspectRatio: mode === "article" ? undefined : `${activeSize.width} / ${activeSize.height}`,
+                    } as React.CSSProperties}
+                  >
+                    <div className="card-profile">
+                      <div className={`avatar avatar-${avatarShape}`}>{avatar ? <img src={avatar} alt="" /> : avatarLetter}</div>
+                      <div><strong>{name || "未命名"}</strong><span>{handle || "@yourname"}</span></div>
+                      <Sparkles className="profile-mark" size={17} />
+                    </div>
+                    <div className="card-copy"><MarkdownBlocks blocks={page} media={media} /></div>
+                    <footer><span>IDEA TO PAGE</span><span>{String(index + 1).padStart(2, "0")} / {String(visiblePages.length).padStart(2, "0")}</span></footer>
+                  </article>
+                ))}
+              </div>
+              {mode === "cards" && (
+                <aside className="preview-note">
+                  <FileImage size={18} />
+                  <div><strong>高清 PNG</strong><span>{activeSize.label}</span></div>
+                  <ChevronRight size={16} />
+                </aside>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="preview-reopen">
+            <button type="button" onClick={() => setPreviewOpen(true)}><PanelRightOpen size={18} />打开预览</button>
           </div>
-          {mode === "cards" && (
-            <aside className="preview-note">
-              <FileImage size={18} />
-              <div><strong>高清 PNG</strong><span>{activeSize.label}</span></div>
-              <ChevronRight size={16} />
-            </aside>
-          )}
-        </div>
+        )}
       </section>
 
       {avatarCrop && (

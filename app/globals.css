@@ -36,8 +36,32 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   --shadow-soft: 0 10px 25px rgba(0, 0, 0, .28);
 }
 
-.app.preview-collapsed { grid-template-columns: 48px 1fr; }
-.app.preview-collapsed .preview-panel { display: none; }
+.app.preview-collapsed { grid-template-columns: 48px minmax(390px, 500px) minmax(120px, 1fr); }
+.app.preview-collapsed .preview-topbar,
+.app.preview-collapsed .preview-stage { display: none; }
+.preview-reopen {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  background: var(--soft);
+}
+.preview-reopen button {
+  display: inline-flex;
+  height: 40px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  border-radius: 8px;
+  color: var(--paper);
+  background: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  border: 0;
+  cursor: pointer;
+}
+.preview-reopen button:hover { transform: translateY(-1px); }
 
 .history-sidebar {
   position: relative;
