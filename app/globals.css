@@ -255,13 +255,13 @@ h1, h2 { margin: 0; font-size: 22px; line-height: 1.08; letter-spacing: -.02em; 
 .card-copy p { margin: 0 0 10px; color: var(--card-ink); font-size: var(--copy-size); line-height: var(--copy-leading); }
 .card-copy strong { font-weight: 850; }
 .card-copy em { color: color-mix(in srgb, var(--card-ink) 72%, transparent); }
+.card-copy u { text-decoration-color: var(--card-accent); text-decoration-thickness: .1em; text-underline-offset: .16em; }
 .card-copy mark { padding: 0 .16em; color: inherit; background: color-mix(in srgb, var(--card-accent) 18%, transparent); }
 .card-copy blockquote { margin: 13px 0; padding: 10px 14px; border-left: 3px solid var(--card-accent); color: color-mix(in srgb, var(--card-ink) 72%, transparent); background: color-mix(in srgb, var(--card-accent) 7%, transparent); font-size: calc(var(--copy-size) * .95); line-height: 1.65; }
 .card-copy .bullet { display: flex; gap: 8px; }
 .card-copy .bullet > span { color: var(--card-accent); }
-.content-image { display: grid; gap: 5px; margin: 14px 0 16px; }
+.content-image { display: block; margin: 14px 0 16px; }
 .content-image img { display: block; width: 100%; max-height: 290px; object-fit: contain; border-radius: 8px; background: color-mix(in srgb, var(--card-ink) 5%, transparent); }
-.content-image figcaption { overflow: hidden; color: color-mix(in srgb, var(--card-ink) 52%, transparent); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .content-image-missing { margin: 14px 0; padding: 18px; border: 1px dashed color-mix(in srgb, var(--card-ink) 22%, transparent); border-radius: 8px; color: color-mix(in srgb, var(--card-ink) 55%, transparent); font-size: 11px; text-align: center; }
 .share-card footer { display: flex; justify-content: space-between; padding-top: 15px; border-top: 1px solid color-mix(in srgb, var(--card-ink) 12%, transparent); color: color-mix(in srgb, var(--card-ink) 52%, transparent); font-size: 9px; font-weight: 800; letter-spacing: .12em; }
 

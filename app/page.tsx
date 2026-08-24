@@ -136,8 +136,9 @@ function paginate(source: string) {
 }
 
 function InlineText({ text }: { text: string }) {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|==[^=]+==)/g);
+  const parts = text.split(/(<u>[^<]+<\/u>|\*\*[^*]+\*\*|\*[^*]+\*|==[^=]+==)/g);
   return parts.map((part, index) => {
+    if (part.startsWith("<u>") && part.endsWith("</u>")) return <u key={index}>{part.slice(3, -4)}</u>;
     if (part.startsWith("**") && part.endsWith("**")) return <strong key={index}>{part.slice(2, -2)}</strong>;
     if (part.startsWith("*") && part.endsWith("*")) return <em key={index}>{part.slice(1, -1)}</em>;
     if (part.startsWith("==") && part.endsWith("==")) return <mark key={index}>{part.slice(2, -2)}</mark>;
@@ -156,7 +157,6 @@ function MarkdownBlocks({ blocks, media }: { blocks: string[]; media: MediaItem[
         return (
           <figure className="content-image" key={key}>
             <img src={item.src} alt={item.name} />
-            <figcaption>{item.name}{item.type === "image/gif" ? " · 动态图片" : ""}</figcaption>
           </figure>
         );
       }
@@ -185,6 +185,7 @@ export default function Home() {
   const [theme, setTheme] = useState<ThemeName>("paper");
   const [fontSize, setFontSize] = useState(17);
   const [lineHeight, setLineHeight] = useState(1.75);
+  const [cardPadding, setCardPadding] = useState(38);
   const [toast, setToast] = useState("");
   const [draftReady, setDraftReady] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
@@ -552,6 +553,7 @@ export default function Home() {
               <label>强调色<input type="color" value={accent} onChange={(event) => setAccent(event.target.value)} /></label>
               <label>字号<input type="range" min="14" max="22" value={fontSize} onChange={(event) => setFontSize(Number(event.target.value))} /><b>{fontSize}</b></label>
               <label>行距<input type="range" min="1.4" max="2.1" step=".05" value={lineHeight} onChange={(event) => setLineHeight(Number(event.target.value))} /><b>{lineHeight}</b></label>
+              <label>页边距<input type="range" min="20" max="64" step="2" value={cardPadding} onChange={(event) => setCardPadding(Number(event.target.value))} /><b>{cardPadding}</b></label>
               <div className="theme-swatches">
                 {themeOptions.map((option) => (
                   <button key={option.id} className={theme === option.id ? "selected" : ""} onClick={() => setTheme(option.id)} title={option.label}>
@@ -594,7 +596,14 @@ export default function Home() {
               <article
                 className={mode === "article" ? "share-card article-card" : "share-card"}
                 key={index}
-                style={{ "--card-bg": activeTheme.color, "--card-ink": cardInk, "--card-accent": accent, "--copy-size": `${fontSize}px`, "--copy-leading": lineHeight } as React.CSSProperties}
+                style={{
+                  "--card-bg": activeTheme.color,
+                  "--card-ink": cardInk,
+                  "--card-accent": accent,
+                  "--copy-size": `${fontSize}px`,
+                  "--copy-leading": lineHeight,
+                  padding: mode === "article" ? `${cardPadding + 14}px ${cardPadding + 20}px` : `${cardPadding}px`,
+                } as React.CSSProperties}
               >
                 <div className="card-profile">
                   <div className={`avatar avatar-${avatarShape}`}>{avatar ? <img src={avatar} alt="" /> : avatarLetter}</div>
