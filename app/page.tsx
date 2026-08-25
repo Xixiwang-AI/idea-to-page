@@ -611,7 +611,7 @@ export default function Home() {
       </section>
 
       <section className="preview-panel">
-        {previewOpen ? (
+        {previewOpen && (
           <>
             <header className="preview-topbar">
               <div>
@@ -660,12 +660,14 @@ export default function Home() {
               )}
             </div>
           </>
-        ) : (
-          <div className="preview-reopen">
-            <button type="button" onClick={() => setPreviewOpen(true)}><PanelRightOpen size={18} />打开预览</button>
-          </div>
         )}
       </section>
+
+      {!previewOpen && (
+        <button className="preview-reopen" type="button" aria-label="打开预览" title="打开预览" onClick={() => setPreviewOpen(true)}>
+          <PanelRightOpen size={18} />
+        </button>
+      )}
 
       {avatarCrop && (
         <div className="avatar-crop-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAvatarCrop(null); }}>
