@@ -473,6 +473,7 @@ export default function Home() {
           <div className="brand-actions">
             <button className="square" aria-label="新建作品" title="新建作品" onClick={resetProject}><Plus size={18} /></button>
             <button className="square" aria-label="切换主题" title="切换界面主题" onClick={() => setDark(!dark)}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
+            <button className="square" aria-label={previewOpen ? "收起预览" : "打开预览"} title={previewOpen ? "收起预览" : "打开预览"} onClick={() => setPreviewOpen(!previewOpen)}>{previewOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}</button>
           </div>
         </header>
 
@@ -619,7 +620,6 @@ export default function Home() {
                 <span className="subtle">{mode === "cards" ? "自动分页已开启" : "公众号长文样式"}</span>
               </div>
               <div className="topbar-actions">
-                <button className="square" aria-label="收起预览" title="收起预览" onClick={() => setPreviewOpen(false)}><PanelRightClose size={18} /></button>
                 <button className="secondary" onClick={() => { setContent(starter); notify("示例内容已恢复"); }}><RotateCcw size={16} />恢复示例</button>
                 <button className="primary" onClick={download}><Download size={17} />{mode === "cards" && pages.length > 1 ? "批量下载" : "下载图片"}</button>
               </div>
@@ -662,12 +662,6 @@ export default function Home() {
           </>
         )}
       </section>
-
-      {!previewOpen && (
-        <button className="preview-reopen" type="button" aria-label="打开预览" title="打开预览" onClick={() => setPreviewOpen(true)}>
-          <PanelRightOpen size={18} />
-        </button>
-      )}
 
       {avatarCrop && (
         <div className="avatar-crop-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAvatarCrop(null); }}>

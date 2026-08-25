@@ -38,24 +38,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 
 .app.preview-collapsed { grid-template-columns: 48px 1fr; }
 .app.preview-collapsed .preview-panel { display: none; }
-.preview-reopen {
-  position: fixed;
-  top: 50%;
-  right: 0;
-  z-index: 30;
-  display: grid;
-  width: 34px;
-  height: 52px;
-  place-items: center;
-  transform: translateY(-50%);
-  border: 1px solid var(--line);
-  border-right: 0;
-  border-radius: 8px 0 0 8px;
-  color: var(--ink);
-  background: var(--soft);
-  box-shadow: var(--shadow-soft);
-}
-.preview-reopen:hover { color: var(--paper); background: var(--ink); }
 
 .history-sidebar {
   position: relative;
