@@ -66,8 +66,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 }
 
 .history-drawer {
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   width: 250px;
   min-height: 100vh;
@@ -83,14 +83,21 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .history-head > span { display: flex; align-items: center; gap: 7px; }
 .history-drawer > p { margin: -2px 0 2px; color: var(--muted); font-size: 11px; }
 .mini-icon { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--control); }
-.history-filters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
-.history-filters button { min-height: 28px; border-radius: 6px; color: var(--muted); background: transparent; font-size: 11px; font-weight: 750; }
-.history-filters .active { color: var(--paper); background: var(--ink); }
-.history-card { display: grid; gap: 4px; width: 100%; padding: 12px; text-align: left; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: var(--control); }
+.draft-ttl { display: grid; gap: 5px; }
+.draft-ttl > span { color: var(--muted); font-size: 11px; font-weight: 700; }
+.draft-ttl-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
+.draft-ttl-options button { min-height: 28px; border-radius: 6px; color: var(--muted); background: transparent; font-size: 11px; font-weight: 750; }
+.draft-ttl-options .active { color: var(--paper); background: var(--ink); }
+.draft-list { display: grid; flex: 1; min-height: 0; gap: 8px; align-content: start; overflow-y: auto; padding-right: 2px; }
+.draft-empty { margin: 0; padding: 16px 0; color: var(--muted); font-size: 11px; text-align: center; }
+.history-card { display: flex; align-items: stretch; width: 100%; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: var(--control); }
 .history-card:hover { border-color: var(--ink); }
 .history-card.current { box-shadow: inset 3px 0 var(--ink); }
+.history-card-main { display: grid; flex: 1; min-width: 0; gap: 4px; padding: 12px; text-align: left; color: inherit; background: transparent; }
 .history-card strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .history-card small, .history-type { color: var(--muted); font-size: 10px; }
+.draft-delete { display: grid; width: 36px; flex: 0 0 auto; place-items: center; color: var(--muted); background: transparent; border-left: 1px solid var(--line); font-size: 16px; }
+.draft-delete:hover { color: #dc2626; background: color-mix(in srgb, #dc2626 8%, transparent); }
 
 .editor-panel {
   min-width: 0;
@@ -315,9 +322,9 @@ h1, h2 { margin: 0; font-size: 22px; line-height: 1.08; letter-spacing: -.02em; 
 @media (max-width: 760px) {
   .app { display: block; }
   .history-sidebar { position: sticky; top: 0; width: 100%; min-height: 50px; height: 50px; border-right: 0; border-bottom: 1px solid var(--line); }
-  .history-sidebar.open { height: 320px; width: 100%; }
+  .history-sidebar.open { height: 420px; width: 100%; }
   .history-tab { position: absolute; top: 3px; left: 10px; width: 44px; height: 44px; margin: 0; }
-  .history-drawer { width: 100%; min-height: 0; height: 320px; padding: 12px 14px; }
+  .history-drawer { width: 100%; min-height: 0; height: 420px; padding: 12px 14px; }
   .editor-panel { min-height: 720px; border-right: 0; border-bottom: 1px solid var(--line); }
   .preview-panel { min-height: auto; }
   .preview-topbar { position: relative; padding: 20px 18px; }

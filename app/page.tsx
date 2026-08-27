@@ -42,12 +42,15 @@ type AvatarCrop = { source: string; width: number; height: number; zoom: number;
 type MediaItem = { id: string; name: string; type: string; src: string };
 type StoredMedia = { id: string; name: string; type: string; blob: Blob };
 type SavedDraft = {
-  content?: string;
-  name?: string;
-  handle?: string;
-  mode?: Mode;
-  avatar?: string | null;
-  avatarShape?: AvatarShape;
+  id: string;
+  content: string;
+  name: string;
+  handle: string;
+  mode: Mode;
+  avatar: string | null;
+  avatarShape: AvatarShape;
+  createdAt: number;
+  updatedAt: number;
 };
 
 const mediaMarkerPattern = /^\[\[image:([^\]]+)\]\]$/;
@@ -94,6 +97,64 @@ async function deleteStoredMedia(id: string) {
   database.close();
 }
 
+const DRAFTS_KEY = "idea-to-page-drafts";
+const TTL_KEY = "idea-to-page-draft-ttl";
+const DEFAULT_TTL = 7;
+
+function generateId() {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function loadDrafts(): SavedDraft[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(DRAFTS_KEY) ?? "[]");
+    return Array.isArray(list)
+      ? (list as SavedDraft[]).filter((draft) => draft && typeof draft.id === "string" && typeof draft.content === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistDrafts(list: SavedDraft[]) {
+  try {
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(list));
+  } catch {
+    // Draft storage is best-effort; a full quota should not break editing.
+  }
+}
+
+function loadTtl(): number {
+  const value = Number(localStorage.getItem(TTL_KEY));
+  return Number.isFinite(value) && value >= 0 ? value : DEFAULT_TTL;
+}
+
+function persistTtl(days: number) {
+  try {
+    localStorage.setItem(TTL_KEY, String(days));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function pruneExpired(list: SavedDraft[], ttlDays: number): SavedDraft[] {
+  if (ttlDays <= 0) return list;
+  const cutoff = Date.now() - ttlDays * 24 * 60 * 60 * 1000;
+  return list.filter((draft) => draft.updatedAt >= cutoff);
+}
+
+function formatRelativeTime(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} 天前`;
+  return new Date(timestamp).toLocaleDateString("zh-CN");
+}
+
 const starter = `# 把今天的灵感，变成好看的内容
 
 写作不该被排版打断。
@@ -121,6 +182,13 @@ const sizeOptions: Array<{ id: CardSize; label: string; width: number; height: n
   { id: "1242x1660", label: "1242 × 1660", width: 1242, height: 1660 },
   { id: "1080x1440", label: "1080 × 1440", width: 1080, height: 1440 },
   { id: "1080x1920", label: "1080 × 1920", width: 1080, height: 1920 },
+];
+
+const ttlOptions: Array<{ id: string; label: string; days: number }> = [
+  { id: "3", label: "3 天", days: 3 },
+  { id: "7", label: "7 天", days: 7 },
+  { id: "30", label: "30 天", days: 30 },
+  { id: "forever", label: "永久", days: 0 },
 ];
 
 function paginate(source: string) {
@@ -199,6 +267,10 @@ export default function Home() {
   const [previewOpen, setPreviewOpen] = useState(true);
   const [toast, setToast] = useState("");
   const [draftReady, setDraftReady] = useState(false);
+  const [drafts, setDrafts] = useState<SavedDraft[]>([]);
+  const [ttlDays, setTtlDays] = useState(DEFAULT_TTL);
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
+  const currentDraftIdRef = useRef<string | null>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const cardContainerRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -225,16 +297,67 @@ export default function Home() {
     window.setTimeout(() => setToast(""), 1800);
   };
 
+  const markCurrentDraft = (id: string | null) => {
+    currentDraftIdRef.current = id;
+    setCurrentDraftId(id);
+  };
+
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("idea-to-page-draft") ?? "{}") as SavedDraft;
-      if (saved.content) setContent(saved.content);
-      if (saved.name) setName(saved.name);
-      if (saved.handle) setHandle(saved.handle);
-      if (saved.mode === "cards" || saved.mode === "article") setMode(saved.mode);
-      if (saved.avatar) setAvatar(saved.avatar);
-      if (saved.avatarShape === "square" || saved.avatarShape === "dino" || saved.avatarShape === "dog" || saved.avatarShape === "circle") {
-        setAvatarShape(saved.avatarShape);
+      const savedTtl = loadTtl();
+      setTtlDays(savedTtl);
+
+      let list = loadDrafts();
+      let changed = false;
+
+      // 迁移旧版单份草稿（idea-to-page-draft）到草稿箱
+      const legacyRaw = localStorage.getItem("idea-to-page-draft");
+      if (legacyRaw) {
+        try {
+          const legacy = JSON.parse(legacyRaw);
+          if (legacy && typeof legacy.content === "string" && legacy.content.trim()) {
+            const exists = list.some((draft) => draft.content === legacy.content);
+            if (!exists) {
+              const now = Date.now();
+              const legacyShape = (["square", "dino", "dog", "circle"] as AvatarShape[]).includes(legacy.avatarShape)
+                ? legacy.avatarShape as AvatarShape
+                : "circle";
+              list = [{
+                id: generateId(),
+                content: legacy.content,
+                name: legacy.name ?? "灵感笔记",
+                handle: legacy.handle ?? "@ideatopage",
+                mode: legacy.mode === "article" ? "article" : "cards",
+                avatar: legacy.avatar ?? null,
+                avatarShape: legacyShape,
+                createdAt: now,
+                updatedAt: now,
+              }, ...list];
+              changed = true;
+            }
+          }
+        } catch {
+          // Ignore damaged legacy draft.
+        }
+        localStorage.removeItem("idea-to-page-draft");
+      }
+
+      const pruned = pruneExpired(list, savedTtl);
+      if (pruned.length !== list.length) changed = true;
+      list = pruned.sort((a, b) => b.updatedAt - a.updatedAt);
+      if (changed) persistDrafts(list);
+
+      setDrafts(list);
+
+      if (list.length > 0) {
+        const latest = list[0];
+        setContent(latest.content);
+        setName(latest.name);
+        setHandle(latest.handle);
+        setMode(latest.mode);
+        setAvatar(latest.avatar);
+        setAvatarShape(latest.avatarShape);
+        markCurrentDraft(latest.id);
       }
     } catch {
       // A damaged local draft should never prevent opening the editor.
@@ -252,7 +375,25 @@ export default function Home() {
   useEffect(() => {
     if (!draftReady) return;
     const timer = window.setTimeout(() => {
-      localStorage.setItem("idea-to-page-draft", JSON.stringify({ content, name, handle, mode, avatar, avatarShape }));
+      const id = currentDraftIdRef.current ?? generateId();
+      const now = Date.now();
+      const current = loadDrafts();
+      const existing = current.find((draft) => draft.id === id);
+      const entry: SavedDraft = {
+        id,
+        content,
+        name,
+        handle,
+        mode,
+        avatar,
+        avatarShape,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      };
+      const next = [entry, ...current.filter((draft) => draft.id !== id)].sort((a, b) => b.updatedAt - a.updatedAt);
+      setDrafts(next);
+      persistDrafts(next);
+      if (!currentDraftIdRef.current) markCurrentDraft(id);
     }, 300);
     return () => window.clearTimeout(timer);
   }, [avatar, avatarShape, content, draftReady, handle, mode, name]);
@@ -432,44 +573,105 @@ export default function Home() {
   };
 
   const resetProject = () => {
-    if (content !== starter) localStorage.setItem("idea-to-page-previous", content);
-    setContent("# 新的灵感\n\n从这里开始写作。");
+    const id = generateId();
+    const now = Date.now();
+    const entry: SavedDraft = {
+      id,
+      content: "# 新的灵感\n\n从这里开始写作。",
+      name: "灵感笔记",
+      handle: "@ideatopage",
+      mode: "cards",
+      avatar: null,
+      avatarShape: "circle",
+      createdAt: now,
+      updatedAt: now,
+    };
+    const next = [entry, ...drafts].sort((a, b) => b.updatedAt - a.updatedAt);
+    setDrafts(next);
+    persistDrafts(next);
+    setContent(entry.content);
+    setName(entry.name);
+    setHandle(entry.handle);
+    setMode(entry.mode);
+    setAvatar(entry.avatar);
+    setAvatarShape(entry.avatarShape);
+    markCurrentDraft(id);
     notify("已新建空白作品");
   };
 
-  const restorePrevious = () => {
-    const previous = localStorage.getItem("idea-to-page-previous");
-    if (previous) {
-      setContent(previous);
-      notify("已恢复上一份作品");
+  const loadDraft = (id: string) => {
+    const draft = drafts.find((candidate) => candidate.id === id);
+    if (!draft) return;
+    setContent(draft.content);
+    setName(draft.name);
+    setHandle(draft.handle);
+    setMode(draft.mode);
+    setAvatar(draft.avatar);
+    setAvatarShape(draft.avatarShape);
+    markCurrentDraft(id);
+    setHistoryOpen(false);
+    notify("已恢复草稿");
+  };
+
+  const deleteDraft = (id: string) => {
+    const next = drafts.filter((draft) => draft.id !== id);
+    setDrafts(next);
+    persistDrafts(next);
+    if (currentDraftIdRef.current === id) markCurrentDraft(null);
+    notify("草稿已删除");
+  };
+
+  const changeTtl = (days: number) => {
+    setTtlDays(days);
+    persistTtl(days);
+    const pruned = pruneExpired(drafts, days);
+    if (pruned.length !== drafts.length) {
+      setDrafts(pruned);
+      persistDrafts(pruned);
     }
+    notify(days === 0 ? "草稿将永久保留" : `草稿将保留 ${days} 天`);
   };
 
   return (
     <main className={`app${dark ? " dark" : ""}${previewOpen ? "" : " preview-collapsed"}`}>
-      <aside className={historyOpen ? "history-sidebar open" : "history-sidebar"} aria-label="历史记录">
+      <aside className={historyOpen ? "history-sidebar open" : "history-sidebar"} aria-label="草稿箱">
         {!historyOpen && (
-          <button className="history-tab" aria-label="打开历史记录" onClick={() => setHistoryOpen(true)}>
+          <button className="history-tab" aria-label="打开草稿箱" onClick={() => setHistoryOpen(true)}>
             <PanelLeftOpen size={18} />
           </button>
         )}
         <div className="history-drawer">
           <div className="history-head">
-            <span><History size={16} />历史记录</span>
-            <button className="mini-icon" aria-label="收起历史记录" onClick={() => setHistoryOpen(false)}><PanelLeftClose size={17} /></button>
+            <span><History size={16} />草稿箱</span>
+            <button className="mini-icon" aria-label="收起草稿箱" onClick={() => setHistoryOpen(false)}><PanelLeftClose size={17} /></button>
           </div>
           <p>自动保存在当前设备</p>
-          <div className="history-filters"><button className="active">全部</button><button>图文</button><button>长文</button></div>
-          <button className="history-card current">
-            <span className="history-type">当前作品</span>
-            <strong>{content.match(/^# (.+)$/m)?.[1] ?? "未命名作品"}</strong>
-            <small>刚刚自动保存 · {pages.length} 页</small>
-          </button>
-          <button className="history-card" onClick={restorePrevious}>
-            <span className="history-type">上一份</span>
-            <strong>最近编辑的内容</strong>
-            <small>点击恢复</small>
-          </button>
+          <div className="draft-ttl">
+            <span>保留时长</span>
+            <div className="draft-ttl-options">
+              {ttlOptions.map((option) => (
+                <button key={option.id} type="button" className={ttlDays === option.days ? "active" : ""} aria-pressed={ttlDays === option.days} onClick={() => changeTtl(option.days)}>
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="draft-list">
+            {drafts.length === 0 ? (
+              <p className="draft-empty">暂无草稿，开始写作后会自动保存</p>
+            ) : (
+              drafts.map((draft) => (
+                <div className={draft.id === currentDraftId ? "history-card current" : "history-card"} key={draft.id}>
+                  <button className="history-card-main" type="button" onClick={() => loadDraft(draft.id)}>
+                    <span className="history-type">{draft.mode === "article" ? "长文" : "图文"}</span>
+                    <strong>{draft.content.match(/^# (.+)$/m)?.[1] ?? "未命名作品"}</strong>
+                    <small>{formatRelativeTime(draft.updatedAt)} · {paginate(draft.content).length} 页</small>
+                  </button>
+                  <button className="draft-delete" type="button" aria-label="删除草稿" onClick={() => deleteDraft(draft.id)}>×</button>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </aside>
 
