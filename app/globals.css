@@ -273,7 +273,7 @@ h1, h2 { margin: 0; font-size: 22px; line-height: 1.08; letter-spacing: -.02em; 
 .card-copy em { color: color-mix(in srgb, var(--card-ink) 72%, transparent); }
 .card-copy u { text-decoration-color: var(--card-accent); text-decoration-thickness: .1em; text-underline-offset: .16em; }
 .card-copy mark { padding: 0 .16em; color: inherit; background: color-mix(in srgb, var(--card-accent) 18%, transparent); }
-.card-copy blockquote { margin: 13px 0; padding: 0; color: #1e40af; font-size: calc(var(--copy-size) * .95); line-height: 1.65; }
+.card-copy blockquote { margin: 13px 0; padding: 11px 14px; border-radius: 8px; color: #1e40af; background: #eaf1ff; font-size: calc(var(--copy-size) * .95); line-height: 1.65; }
 .card-copy .bullet { display: flex; gap: 8px; }
 .card-copy .bullet > span { color: var(--card-accent); }
 .content-image { display: block; margin: 14px 0 16px; }

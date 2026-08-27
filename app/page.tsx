@@ -191,25 +191,35 @@ const ttlOptions: Array<{ id: string; label: string; days: number }> = [
   { id: "forever", label: "永久", days: 0 },
 ];
 
+function splitBlocks(source: string) {
+  return source.trim().split(/\n\s*\n/).filter(Boolean);
+}
+
+// 初始把所有内容放在第一页，真正分页交给渲染后的溢出测量
 function paginate(source: string) {
-  const blocks = source.trim().split(/\n\s*\n/).filter(Boolean);
-  const pages: string[][] = [];
-  let page: string[] = [];
+  const blocks = splitBlocks(source);
+  return blocks.length ? [blocks] : [["# 从这里开始\n\n写下你的第一段内容。"]];
+}
+
+// 草稿列表里预估页数（仅用于展示，不参与实际分页）
+function estimatePageCount(source: string) {
+  const blocks = splitBlocks(source);
+  let pages = 0;
   let weight = 0;
+  let hasContent = false;
   blocks.forEach((block) => {
     const blockWeight = mediaMarkerPattern.test(block.trim())
       ? 5
       : Math.max(1, Math.ceil(block.length / 55)) + (block.startsWith("# ") ? 2 : 0);
-    if (page.length && weight + blockWeight > 8) {
-      pages.push(page);
-      page = [];
+    if (hasContent && weight + blockWeight > 8) {
+      pages += 1;
       weight = 0;
     }
-    page.push(block);
     weight += blockWeight;
+    hasContent = true;
   });
-  if (page.length) pages.push(page);
-  return pages.length ? pages : [["# 从这里开始\n\n写下你的第一段内容。"]];
+  if (hasContent) pages += 1;
+  return pages;
 }
 
 function InlineText({ text }: { text: string }) {
@@ -694,7 +704,7 @@ export default function Home() {
                   <button className="history-card-main" type="button" onClick={() => loadDraft(draft.id)}>
                     <span className="history-type">{draft.mode === "article" ? "长文" : "图文"}</span>
                     <strong>{draft.content.match(/^# (.+)$/m)?.[1] ?? "未命名作品"}</strong>
-                    <small>{formatRelativeTime(draft.updatedAt)} · {paginate(draft.content).length} 页</small>
+                    <small>{formatRelativeTime(draft.updatedAt)} · {estimatePageCount(draft.content)} 页</small>
                   </button>
                   <button className="draft-delete" type="button" aria-label="删除草稿" onClick={() => deleteDraft(draft.id)}>×</button>
                 </div>
