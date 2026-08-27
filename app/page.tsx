@@ -199,8 +199,8 @@ function paginate(source: string) {
   blocks.forEach((block) => {
     const blockWeight = mediaMarkerPattern.test(block.trim())
       ? 5
-      : Math.max(1, Math.ceil(block.length / 55)) + (block.startsWith("# ") ? 2 : 0);
-    if (page.length && weight + blockWeight > 8) {
+      : Math.max(1, Math.ceil(block.length / 55)) + (block.startsWith("# ") ? 2 : 0) + (block.startsWith("## ") ? 1 : 0);
+    if (page.length && weight + blockWeight > 7) {
       pages.push(page);
       page = [];
       weight = 0;
