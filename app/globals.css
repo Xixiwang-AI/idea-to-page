@@ -260,7 +260,7 @@ h1, h2 { margin: 0; font-size: 22px; line-height: 1.08; letter-spacing: -.02em; 
 .profile-mark { margin-left: auto; color: var(--card-accent); }
 .card-copy { flex: 1; padding-top: 30px; overflow: hidden; }
 .card-copy h3 { margin: 0 0 23px; color: var(--card-ink); font-size: 20px; font-weight: 700; line-height: 1.18; letter-spacing: -.045em; }
-.card-copy h4 { margin: 17px 0 9px; padding-left: 10px; border-left: 4px solid var(--card-accent); color: var(--card-ink); font-size: calc(var(--copy-size) * 1.12); line-height: 1.35; }
+.card-copy h4 { margin: 17px 0 9px; padding: 6px 10px; background: #eaf4ff; border-radius: 6px; color: var(--card-ink); font-size: calc(var(--copy-size) * 1.12); line-height: 1.35; }
 .card-copy p { margin: 0 0 10px; color: var(--card-ink); font-size: var(--copy-size); line-height: var(--copy-leading); }
 .card-copy strong { font-weight: 850; }
 .card-copy em { color: color-mix(in srgb, var(--card-ink) 72%, transparent); }
