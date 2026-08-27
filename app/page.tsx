@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type GlyphProps = { size?: number; className?: string };
 const glyph = (character: string) =>
@@ -199,8 +199,8 @@ function paginate(source: string) {
   blocks.forEach((block) => {
     const blockWeight = mediaMarkerPattern.test(block.trim())
       ? 5
-      : Math.max(1, Math.ceil(block.length / 55)) + (block.startsWith("# ") ? 2 : 0) + (block.startsWith("## ") ? 1 : 0);
-    if (page.length && weight + blockWeight > 7) {
+      : Math.max(1, Math.ceil(block.length / 55)) + (block.startsWith("# ") ? 2 : 0);
+    if (page.length && weight + blockWeight > 8) {
       pages.push(page);
       page = [];
       weight = 0;
@@ -279,7 +279,7 @@ export default function Home() {
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const cropImageRef = useRef<HTMLImageElement>(null);
   const cropDragRef = useRef<{ pointerId: number; clientX: number; clientY: number; x: number; y: number } | null>(null);
-  const pages = useMemo(() => paginate(content), [content]);
+  const [pages, setPages] = useState<string[][]>(() => paginate(starter));
   const visiblePages = mode === "article" ? [pages.flat()] : pages;
   const activeTheme = themeOptions.find((option) => option.id === theme)!;
   const activeSize = sizeOptions.find((option) => option.id === cardSize)!;
@@ -409,6 +409,35 @@ export default function Home() {
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [settingsOpen]);
+
+  // content 变化时重新做宽松分页
+  useEffect(() => {
+    setPages(paginate(content));
+  }, [content]);
+
+  // 渲染后测量卡片是否溢出，溢出时把最后一块内容移到下一页
+  useEffect(() => {
+    if (mode === "article" || !previewOpen) return;
+    const container = cardContainerRef.current;
+    if (!container) return;
+    const cards = Array.from(container.querySelectorAll<HTMLElement>(".share-card"));
+    for (let index = 0; index < cards.length; index += 1) {
+      const copy = cards[index].querySelector<HTMLElement>(".card-copy");
+      if (!copy) continue;
+      if (copy.scrollHeight > copy.clientHeight + 1) {
+        setPages((current) => {
+          const next = current.map((page) => [...page]);
+          const page = next[index];
+          if (!page || page.length <= 1) return current;
+          const moved = page.pop()!;
+          if (index + 1 < next.length) next[index + 1].unshift(moved);
+          else next.push([moved]);
+          return next;
+        });
+        break;
+      }
+    }
+  });
 
   const wrapSelection = (before: string, after = before) => {
     const editor = editorRef.current;
