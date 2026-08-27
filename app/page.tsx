@@ -196,10 +196,30 @@ function splitLines(source: string) {
   return source.split(/\r?\n/).filter((line) => line.trim() !== "");
 }
 
-// 初始把所有内容放在第一页，真正分页交给渲染后的溢出测量
+function calcLineWeight(line: string) {
+  if (mediaMarkerPattern.test(line.trim())) return 5;
+  return Math.max(1, Math.ceil(line.length / 55)) + (line.startsWith("# ") ? 2 : 0);
+}
+
+// 宽松预分页：尽量把内容放在一起，避免拆得太碎；权重上限调大
 function paginate(source: string) {
   const lines = splitLines(source);
-  return lines.length ? [lines] : [["# 从这里开始", "写下你的第一段内容。"]];
+  if (!lines.length) return [["# 从这里开始", "写下你的第一段内容。"]];
+  const pages: string[][] = [];
+  let page: string[] = [];
+  let weight = 0;
+  lines.forEach((line) => {
+    const w = calcLineWeight(line);
+    if (page.length && weight + w > 15) {
+      pages.push(page);
+      page = [];
+      weight = 0;
+    }
+    page.push(line);
+    weight += w;
+  });
+  if (page.length) pages.push(page);
+  return pages;
 }
 
 // 草稿列表里预估页数（仅用于展示，不参与实际分页）
@@ -209,14 +229,12 @@ function estimatePageCount(source: string) {
   let weight = 0;
   let hasContent = false;
   lines.forEach((line) => {
-    const lineWeight = mediaMarkerPattern.test(line.trim())
-      ? 5
-      : Math.max(1, Math.ceil(line.length / 55)) + (line.startsWith("# ") ? 2 : 0);
-    if (hasContent && weight + lineWeight > 8) {
+    const w = calcLineWeight(line);
+    if (hasContent && weight + w > 8) {
       pages += 1;
       weight = 0;
     }
-    weight += lineWeight;
+    weight += w;
     hasContent = true;
   });
   if (hasContent) pages += 1;
@@ -421,12 +439,20 @@ export default function Home() {
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [settingsOpen]);
 
-  // content 变化时重新做宽松分页
+  // content 变化时：行数不变则保留分页结构只更新文字；行数变化才重新分页
   useEffect(() => {
-    setPages(paginate(content));
+    const lines = splitLines(content);
+    setPages((current) => {
+      const currentLines = current.flat();
+      if (currentLines.length === lines.length) {
+        let i = 0;
+        return current.map((page) => page.map(() => lines[i++]));
+      }
+      return paginate(content);
+    });
   }, [content]);
 
-  // 渲染后同步测量卡片是否溢出，溢出时把最后一行内容移到下一页（空行不参与分页）
+  // 渲染后同步测量：溢出时把最后一行移到下一页；不足时尝试从下一页移回
   useLayoutEffect(() => {
     if (mode === "article" || !previewOpen) return;
     const container = cardContainerRef.current;
@@ -435,6 +461,7 @@ export default function Home() {
     for (let index = 0; index < cards.length; index += 1) {
       const copy = cards[index].querySelector<HTMLElement>(".card-copy");
       if (!copy) continue;
+      // 溢出：移最后一行到下一页
       if (copy.scrollHeight > copy.clientHeight) {
         setPages((current) => {
           const next = current.map((page) => [...page]);
@@ -448,7 +475,7 @@ export default function Home() {
         break;
       }
     }
-  });
+  }, [pages, previewOpen, mode]);
 
   const wrapSelection = (before: string, after = before) => {
     const editor = editorRef.current;
