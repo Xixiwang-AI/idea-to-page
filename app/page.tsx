@@ -203,6 +203,8 @@ export default function Home() {
   const cardContainerRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
+  const settingsPanelRef = useRef<HTMLDivElement>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const cropImageRef = useRef<HTMLImageElement>(null);
   const cropDragRef = useRef<{ pointerId: number; clientX: number; clientY: number; x: number; y: number } | null>(null);
   const pages = useMemo(() => paginate(content), [content]);
@@ -254,6 +256,18 @@ export default function Home() {
     }, 300);
     return () => window.clearTimeout(timer);
   }, [avatar, avatarShape, content, draftReady, handle, mode, name]);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (settingsPanelRef.current?.contains(target)) return;
+      if (settingsButtonRef.current?.contains(target)) return;
+      setSettingsOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [settingsOpen]);
 
   const wrapSelection = (before: string, after = before) => {
     const editor = editorRef.current;
@@ -544,7 +558,7 @@ export default function Home() {
             <button className="tool-button" title="插入图片或 GIF" onClick={() => mediaInputRef.current?.click()}><ImagePlus /></button>
             <input ref={mediaInputRef} className="visually-hidden" type="file" accept="image/*,.gif" multiple onChange={addMedia} />
             <button className="tool-button" title="查找" onClick={() => { editorRef.current?.focus(); notify("可使用 ⌘F 在编辑器内查找"); }}><Search /></button>
-            <button className={settingsOpen ? "tool-button active" : "tool-button"} title="设计设置" onClick={() => setSettingsOpen(!settingsOpen)}><Settings2 /></button>
+            <button ref={settingsButtonRef} className={settingsOpen ? "tool-button active" : "tool-button"} title="设计设置" onClick={() => setSettingsOpen(!settingsOpen)}><Settings2 /></button>
           </div>
 
           {media.length > 0 && (
@@ -563,7 +577,7 @@ export default function Home() {
           )}
 
           {settingsOpen && (
-            <div className="settings-panel">
+            <div className="settings-panel" ref={settingsPanelRef}>
               <div className="settings-title"><span><Palette size={16} />卡片设计</span><small>实时生效</small></div>
               <label>强调色<input type="color" value={accent} onChange={(event) => setAccent(event.target.value)} /></label>
               <label>字号<input type="range" min="14" max="22" value={fontSize} onChange={(event) => setFontSize(Number(event.target.value))} /><b>{fontSize}</b></label>
