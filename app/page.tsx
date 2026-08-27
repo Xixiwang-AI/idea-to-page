@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 type GlyphProps = { size?: number; className?: string };
 const glyph = (character: string) =>
@@ -191,31 +191,32 @@ const ttlOptions: Array<{ id: string; label: string; days: number }> = [
   { id: "forever", label: "永久", days: 0 },
 ];
 
-function splitBlocks(source: string) {
-  return source.trim().split(/\n\s*\n/).filter(Boolean);
+// 把内容拆成「渲染单元」：每个非空行一个单元，空行不参与分页
+function splitLines(source: string) {
+  return source.split(/\r?\n/).filter((line) => line.trim() !== "");
 }
 
 // 初始把所有内容放在第一页，真正分页交给渲染后的溢出测量
 function paginate(source: string) {
-  const blocks = splitBlocks(source);
-  return blocks.length ? [blocks] : [["# 从这里开始\n\n写下你的第一段内容。"]];
+  const lines = splitLines(source);
+  return lines.length ? [lines] : [["# 从这里开始", "写下你的第一段内容。"]];
 }
 
 // 草稿列表里预估页数（仅用于展示，不参与实际分页）
 function estimatePageCount(source: string) {
-  const blocks = splitBlocks(source);
+  const lines = splitLines(source);
   let pages = 0;
   let weight = 0;
   let hasContent = false;
-  blocks.forEach((block) => {
-    const blockWeight = mediaMarkerPattern.test(block.trim())
+  lines.forEach((line) => {
+    const lineWeight = mediaMarkerPattern.test(line.trim())
       ? 5
-      : Math.max(1, Math.ceil(block.length / 55)) + (block.startsWith("# ") ? 2 : 0);
-    if (hasContent && weight + blockWeight > 8) {
+      : Math.max(1, Math.ceil(line.length / 55)) + (line.startsWith("# ") ? 2 : 0);
+    if (hasContent && weight + lineWeight > 8) {
       pages += 1;
       weight = 0;
     }
-    weight += blockWeight;
+    weight += lineWeight;
     hasContent = true;
   });
   if (hasContent) pages += 1;
@@ -425,8 +426,8 @@ export default function Home() {
     setPages(paginate(content));
   }, [content]);
 
-  // 渲染后测量卡片是否溢出，溢出时把最后一块内容移到下一页
-  useEffect(() => {
+  // 渲染后同步测量卡片是否溢出，溢出时把最后一行内容移到下一页（空行不参与分页）
+  useLayoutEffect(() => {
     if (mode === "article" || !previewOpen) return;
     const container = cardContainerRef.current;
     if (!container) return;
@@ -434,7 +435,7 @@ export default function Home() {
     for (let index = 0; index < cards.length; index += 1) {
       const copy = cards[index].querySelector<HTMLElement>(".card-copy");
       if (!copy) continue;
-      if (copy.scrollHeight > copy.clientHeight + 1) {
+      if (copy.scrollHeight > copy.clientHeight) {
         setPages((current) => {
           const next = current.map((page) => [...page]);
           const page = next[index];
