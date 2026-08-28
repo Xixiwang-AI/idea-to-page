@@ -192,8 +192,39 @@ const ttlOptions: Array<{ id: string; label: string; days: number }> = [
 ];
 
 // 把内容拆成「渲染单元」：每个非空行一个单元，空行不参与分页
+// 超长的普通段落按句子聚合成约 60-70 字符的片段，让分页能在段落内部进行，
+// 避免一个超长段落占满整页、导致其前后页面留下大块空白。
 function splitLines(source: string) {
-  return source.split(/\r?\n/).filter((line) => line.trim() !== "");
+  const raw = source.split(/\r?\n/).filter((line) => line.trim() !== "");
+  const out: string[] = [];
+  for (const line of raw) {
+    const trimmed = line.trim();
+    const structured =
+      trimmed.startsWith("# ") ||
+      trimmed.startsWith("## ") ||
+      trimmed.startsWith("> ") ||
+      /^[-*] /.test(trimmed) ||
+      mediaMarkerPattern.test(trimmed);
+    if (structured || line.length <= 80) {
+      out.push(line);
+      continue;
+    }
+    const sentences = line.split(/(?<=[。！？!?；;])/).filter((s) => s.trim() !== "");
+    const chunks: string[] = [];
+    let buf = "";
+    for (const s of sentences) {
+      if (buf && (buf + s).length > 70) {
+        chunks.push(buf);
+        buf = s;
+      } else {
+        buf += s;
+      }
+    }
+    if (buf) chunks.push(buf);
+    if (chunks.length > 1) out.push(...chunks);
+    else out.push(line);
+  }
+  return out;
 }
 
 function calcLineWeight(line: string) {
@@ -210,7 +241,7 @@ function paginate(source: string) {
   let weight = 0;
   lines.forEach((line) => {
     const w = calcLineWeight(line);
-    if (page.length && weight + w > 8) {
+    if (page.length && weight + w > 22) {
       pages.push(page);
       page = [];
       weight = 0;
@@ -230,7 +261,7 @@ function estimatePageCount(source: string) {
   let hasContent = false;
   lines.forEach((line) => {
     const w = calcLineWeight(line);
-    if (hasContent && weight + w > 8) {
+    if (hasContent && weight + w > 22) {
       pages += 1;
       weight = 0;
     }
@@ -458,11 +489,15 @@ export default function Home() {
     const container = cardContainerRef.current;
     if (!container) return;
     const cards = Array.from(container.querySelectorAll<HTMLElement>(".share-card"));
+
+    // 第一步：消除溢出。flex 容器里 scrollHeight 不可靠，用真实布局位置判断。
     for (let index = 0; index < cards.length; index += 1) {
       const copy = cards[index].querySelector<HTMLElement>(".card-copy");
-      if (!copy) continue;
-      // 溢出：移最后一行到下一页
-      if (copy.scrollHeight > copy.clientHeight) {
+      const lastChild = copy?.lastElementChild as HTMLElement | null;
+      if (!copy || !lastChild) continue;
+      const copyRect = copy.getBoundingClientRect();
+      const lastRect = lastChild.getBoundingClientRect();
+      if (lastRect.bottom > copyRect.bottom + 1) {
         setPages((current) => {
           const next = current.map((page) => [...page]);
           const page = next[index];
@@ -472,8 +507,45 @@ export default function Home() {
           else next.push([moved]);
           return next;
         });
-        break;
+        return;
       }
+    }
+
+    // 第二步：填充空白。测量下一页第一行「连同其后间距」的真实占用，
+    // 只有本页剩余空白放得下才移回，避免移回后溢出导致的来回振荡。
+    for (let index = 0; index < cards.length; index += 1) {
+      const copy = cards[index].querySelector<HTMLElement>(".card-copy");
+      if (!copy || index + 1 >= cards.length) continue;
+      const lastChild = copy.lastElementChild as HTMLElement | null;
+      if (!lastChild) continue;
+      const copyRect = copy.getBoundingClientRect();
+      const lastRect = lastChild.getBoundingClientRect();
+      const slack = copyRect.bottom - lastRect.bottom;
+
+      const nextCopy = cards[index + 1].querySelector<HTMLElement>(".card-copy");
+      const nextFirst = nextCopy?.firstElementChild as HTMLElement | null;
+      if (!nextFirst) continue;
+      const nextFirstTop = nextFirst.getBoundingClientRect().top;
+      const nextSecond = nextFirst.nextElementSibling as HTMLElement | null;
+      // 占用 = 该行高度 + 它与下一行之间的间距；若它是下一页唯一元素，则用自身高度并预留行间距
+      const occupy = nextSecond
+        ? nextSecond.getBoundingClientRect().top - nextFirstTop
+        : nextFirst.getBoundingClientRect().height + 10;
+      if (slack < occupy + 8) continue;
+
+      setPages((current) => {
+        const next = current.map((page) => [...page]);
+        const nextPage = next[index + 1];
+        if (!nextPage || !nextPage.length) return current;
+        const moved = nextPage.shift()!;
+        if (moved.startsWith("# ") || moved.startsWith("## ")) {
+          nextPage.unshift(moved);
+          return current;
+        }
+        next[index].push(moved);
+        return next;
+      });
+      return;
     }
   }, [pages, previewOpen, mode]);
 
