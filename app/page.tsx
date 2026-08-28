@@ -201,7 +201,7 @@ function calcLineWeight(line: string) {
   return Math.max(1, Math.ceil(line.length / 55)) + (line.startsWith("# ") ? 2 : 0);
 }
 
-// 宽松预分页：尽量把内容放在一起，避免拆得太碎；权重上限调大
+// 宽松预分页：权重上限保守一些，避免单页塞太满
 function paginate(source: string) {
   const lines = splitLines(source);
   if (!lines.length) return [["# 从这里开始", "写下你的第一段内容。"]];
@@ -210,7 +210,7 @@ function paginate(source: string) {
   let weight = 0;
   lines.forEach((line) => {
     const w = calcLineWeight(line);
-    if (page.length && weight + w > 15) {
+    if (page.length && weight + w > 8) {
       pages.push(page);
       page = [];
       weight = 0;
