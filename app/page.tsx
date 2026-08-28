@@ -531,7 +531,7 @@ export default function Home() {
       const occupy = nextSecond
         ? nextSecond.getBoundingClientRect().top - nextFirstTop
         : nextFirst.getBoundingClientRect().height + 10;
-      if (slack < occupy + 8) continue;
+      if (slack < occupy + 2) continue;
 
       setPages((current) => {
         const next = current.map((page) => [...page]);
