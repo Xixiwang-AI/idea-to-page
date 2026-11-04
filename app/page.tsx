@@ -513,9 +513,12 @@ export default function Home() {
 
     // 第二步：填充空白。测量下一页第一行「连同其后间距」的真实占用，
     // 只有本页剩余空白放得下才移回，避免移回后溢出导致的来回振荡。
+    // 已摊开空白的页（spread / spread-center）不再参与填充，避免测量基准失真导致振荡。
     for (let index = 0; index < cards.length; index += 1) {
       const copy = cards[index].querySelector<HTMLElement>(".card-copy");
       if (!copy || index + 1 >= cards.length) continue;
+      const card = cards[index];
+      if (card.classList.contains("spread") || card.classList.contains("spread-center")) continue;
       const lastChild = copy.lastElementChild as HTMLElement | null;
       if (!lastChild) continue;
       const copyRect = copy.getBoundingClientRect();
@@ -546,6 +549,24 @@ export default function Home() {
         return next;
       });
       return;
+    }
+
+    // 第三步：能执行到这里说明前两步均无操作（布局已稳定）。
+    // 此时的布局是未摊开前的自然布局，测量才可靠。
+    // 中间页常因「下一个原子单元整行放不下被推到下一页」在底部留下大块空白，
+    // 空白超过页面高度 22% 时，把它均匀摊到段落之间。
+    // 内容不足页面 55% 时改为整体垂直居中，避免行距被拉得过开。
+    for (let index = 0; index < cards.length; index += 1) {
+      const card = cards[index];
+      const copy = card.querySelector<HTMLElement>(".card-copy");
+      const lastChild = copy?.lastElementChild as HTMLElement | null;
+      if (!copy || !lastChild) continue;
+      const copyRect = copy.getBoundingClientRect();
+      const lastRect = lastChild.getBoundingClientRect();
+      const slack = copyRect.bottom - lastRect.bottom;
+      card.classList.toggle("spread", slack > copyRect.height * 0.22);
+      const contentExtent = lastRect.bottom - copyRect.top;
+      card.classList.toggle("spread-center", contentExtent < copyRect.height * 0.55);
     }
   }, [pages, previewOpen, mode]);
 
@@ -984,13 +1005,7 @@ export default function Home() {
               <div className="pages">
                 {visiblePages.map((page, index) => (
                   <article
-                    className={
-                      mode === "article"
-                        ? "share-card article-card"
-                        : index === visiblePages.length - 1
-                          ? "share-card spread"
-                          : "share-card"
-                    }
+                    className={mode === "article" ? "share-card article-card" : "share-card"}
                     key={index}
                     style={{
                       "--card-bg": activeTheme.color,
