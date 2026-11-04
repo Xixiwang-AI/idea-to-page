@@ -984,7 +984,13 @@ export default function Home() {
               <div className="pages">
                 {visiblePages.map((page, index) => (
                   <article
-                    className={mode === "article" ? "share-card article-card" : "share-card"}
+                    className={
+                      mode === "article"
+                        ? "share-card article-card"
+                        : index === visiblePages.length - 1
+                          ? "share-card spread"
+                          : "share-card"
+                    }
                     key={index}
                     style={{
                       "--card-bg": activeTheme.color,
