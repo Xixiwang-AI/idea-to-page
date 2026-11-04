@@ -333,6 +333,9 @@ export default function Home() {
   const currentDraftIdRef = useRef<string | null>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const cardContainerRef = useRef<HTMLDivElement>(null);
+  // 图片异步加载会改变卡片内容高度，加载完成后需要重新测量分页；
+  // 用自增计数器触发测量 effect 重跑。
+  const [mediaTick, setMediaTick] = useState(0);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const settingsPanelRef = useRef<HTMLDivElement>(null);
@@ -490,6 +493,20 @@ export default function Home() {
     if (!container) return;
     const cards = Array.from(container.querySelectorAll<HTMLElement>(".share-card"));
 
+    // 图片异步加载完成后高度会变化，绑定一次性监听触发重新测量。
+    container.querySelectorAll("img").forEach((img) => {
+      if (img.dataset.loadBound) return;
+      img.dataset.loadBound = "1";
+      if (!img.complete) {
+        img.addEventListener("load", () => setMediaTick((t) => t + 1), { once: true });
+        img.addEventListener("error", () => setMediaTick((t) => t + 1), { once: true });
+      }
+    });
+
+    // 先清掉上一轮手动加的摊开/居中标记：React 对未变化的 className 不做 DOM 写入，
+    // 残留的类会让本轮测量建立在「空白已摊开」的失真布局上，导致判断互相污染。
+    cards.forEach((card) => card.classList.remove("spread", "spread-center"));
+
     // 第一步：消除溢出。flex 容器里 scrollHeight 不可靠，用真实布局位置判断。
     for (let index = 0; index < cards.length; index += 1) {
       const copy = cards[index].querySelector<HTMLElement>(".card-copy");
@@ -568,7 +585,7 @@ export default function Home() {
       const contentExtent = lastRect.bottom - copyRect.top;
       card.classList.toggle("spread-center", contentExtent < copyRect.height * 0.55);
     }
-  }, [pages, previewOpen, mode]);
+  }, [pages, previewOpen, mode, mediaTick]);
 
   const wrapSelection = (before: string, after = before) => {
     const editor = editorRef.current;
