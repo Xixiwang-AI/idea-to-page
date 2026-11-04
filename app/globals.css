@@ -268,8 +268,6 @@ h1, h2 { margin: 0; font-size: 22px; line-height: 1.08; letter-spacing: -.02em; 
 .card-copy { flex: 1; padding-top: 30px; overflow: hidden; }
 /* 最后一页内容不足时，把剩余空白均匀摊到段落之间，避免文字与卡片底部之间留大块空白 */
 .share-card.spread .card-copy { display: flex; flex-direction: column; justify-content: space-evenly; }
-/* 内容太少（不足页面一半）时，行距均匀拉开会显得稀疏，改为整体垂直居中 */
-.share-card.spread-center .card-copy { justify-content: center; }
 .card-copy h3 { margin: 0 0 23px; color: var(--card-ink); font-size: 20px; font-weight: 700; line-height: 1.18; letter-spacing: -.045em; }
 .card-copy h4 { margin: 17px 0 9px; padding: 0 0 0 12px; border-left: 4px solid var(--card-accent); color: var(--card-ink); font-size: 18px; font-weight: 700; line-height: 1.35; }
 .card-copy p { margin: 0 0 8px; color: var(--card-ink); font-size: var(--copy-size); line-height: var(--copy-leading); }

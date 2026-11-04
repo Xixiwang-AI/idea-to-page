@@ -503,7 +503,7 @@ export default function Home() {
       }
     });
 
-    // 先清掉上一轮手动加的摊开/居中标记：React 对未变化的 className 不做 DOM 写入，
+    // 先清掉上一轮手动加的摊开标记：React 对未变化的 className 不做 DOM 写入，
     // 残留的类会让本轮测量建立在「空白已摊开」的失真布局上，导致判断互相污染。
     cards.forEach((card) => card.classList.remove("spread", "spread-center"));
 
@@ -535,7 +535,7 @@ export default function Home() {
       const copy = cards[index].querySelector<HTMLElement>(".card-copy");
       if (!copy || index + 1 >= cards.length) continue;
       const card = cards[index];
-      if (card.classList.contains("spread") || card.classList.contains("spread-center")) continue;
+      if (card.classList.contains("spread")) continue;
       const lastChild = copy.lastElementChild as HTMLElement | null;
       if (!lastChild) continue;
       const copyRect = copy.getBoundingClientRect();
@@ -581,9 +581,13 @@ export default function Home() {
       const copyRect = copy.getBoundingClientRect();
       const lastRect = lastChild.getBoundingClientRect();
       const slack = copyRect.bottom - lastRect.bottom;
-      card.classList.toggle("spread", slack > copyRect.height * 0.22);
       const contentExtent = lastRect.bottom - copyRect.top;
-      card.classList.toggle("spread-center", contentExtent < copyRect.height * 0.55);
+      // 摊开仅用于「留白明显但内容尚有一定密度」的页面；内容过稀的页面保持
+      // 书籍式顶部对齐，避免行距被拉得稀稀拉拉。
+      card.classList.toggle(
+        "spread",
+        slack > copyRect.height * 0.22 && contentExtent >= copyRect.height * 0.55,
+      );
     }
   }, [pages, previewOpen, mode, mediaTick]);
 
