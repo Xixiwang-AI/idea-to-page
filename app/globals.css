@@ -279,7 +279,15 @@ h1, h2 { margin: 0; font-size: 22px; line-height: 1.08; letter-spacing: -.02em; 
 .card-copy .bullet { display: flex; gap: 8px; }
 .card-copy .bullet > span { color: var(--card-accent); }
 .content-image { display: block; margin: 14px 0 16px; }
-.content-image img { display: block; width: 100%; max-height: 290px; object-fit: contain; border-radius: 8px; background: color-mix(in srgb, var(--card-ink) 5%, transparent); }
+.content-image img { display: block; width: 100%; max-height: 290px; margin: 0 auto; object-fit: contain; border-radius: 8px; background: color-mix(in srgb, var(--card-ink) 5%, transparent); }
+.preview-stage .content-image img { cursor: pointer; }
+.image-resize-pop { position: fixed; z-index: 80; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); box-shadow: 0 18px 48px rgba(23, 32, 47, .2); color: var(--ink); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.image-resize-pop span { color: var(--muted); }
+.image-resize-pop input[type="range"] { width: 110px; accent-color: var(--ink); }
+.image-resize-pop b { min-width: 32px; text-align: right; }
+.image-resize-pop button { padding: 3px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--control); color: var(--ink); font-size: 11px; font-weight: 700; cursor: pointer; }
+.image-resize-pop button:hover { background: color-mix(in srgb, var(--ink) 8%, var(--control)); }
+.image-resize-pop .image-resize-done { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .content-image-missing { margin: 14px 0; padding: 18px; border: 1px dashed color-mix(in srgb, var(--card-ink) 22%, transparent); border-radius: 8px; color: color-mix(in srgb, var(--card-ink) 55%, transparent); font-size: 11px; text-align: center; }
 .share-card footer { display: flex; justify-content: space-between; padding-top: 15px; border-top: 1px solid color-mix(in srgb, var(--card-ink) 12%, transparent); color: color-mix(in srgb, var(--card-ink) 52%, transparent); font-size: 9px; font-weight: 800; letter-spacing: .12em; }
 

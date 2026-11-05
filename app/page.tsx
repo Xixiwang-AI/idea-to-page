@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 type GlyphProps = { size?: number; className?: string };
 const glyph = (character: string) =>
@@ -53,7 +53,7 @@ type SavedDraft = {
   updatedAt: number;
 };
 
-const mediaMarkerPattern = /^\[\[image:([^\]]+)\]\]$/;
+const mediaMarkerPattern = /^\[\[image:([^|\]]+)(?:\|(\d+))?\]\]$/;
 
 function openMediaDatabase() {
   return new Promise<IDBDatabase>((resolve, reject) => {
@@ -283,7 +283,7 @@ function InlineText({ text }: { text: string }) {
   });
 }
 
-function MarkdownBlocks({ blocks, media }: { blocks: string[]; media: MediaItem[] }) {
+function MarkdownBlocks({ blocks, media, onImageClick }: { blocks: string[]; media: MediaItem[]; onImageClick?: (event: React.MouseEvent<HTMLImageElement>, mediaId: string) => void }) {
   return blocks.flatMap((block, blockIndex) =>
     block.split("\n").map((line, lineIndex) => {
       const key = `${blockIndex}-${lineIndex}`;
@@ -291,9 +291,17 @@ function MarkdownBlocks({ blocks, media }: { blocks: string[]; media: MediaItem[
       if (mediaMatch) {
         const item = media.find((candidate) => candidate.id === mediaMatch[1]);
         if (!item) return <div className="content-image-missing" key={key}>图片暂不可用，请重新添加</div>;
+        // 标记里可选的宽度百分比（[[image:id|60]]），控制图片在卡片内的显示宽度。
+        const widthPct = mediaMatch[2] ? Math.min(100, Math.max(25, Number(mediaMatch[2]))) : 100;
         return (
           <figure className="content-image" key={key}>
-            <img src={item.src} alt={item.name} />
+            <img
+              src={item.src}
+              alt={item.name}
+              style={widthPct < 100 ? { width: `${widthPct}%` } : undefined}
+              data-media-id={item.id}
+              onClick={onImageClick ? (event) => onImageClick(event, item.id) : undefined}
+            />
           </figure>
         );
       }
@@ -336,6 +344,9 @@ export default function Home() {
   // 图片异步加载会改变卡片内容高度，加载完成后需要重新测量分页；
   // 用自增计数器触发测量 effect 重跑。
   const [mediaTick, setMediaTick] = useState(0);
+  // 预览中点击图片后显示的大小调节浮层（记录对应图片的 mediaId）；
+  // 大小写入标记 [[image:id|百分比]]，随草稿持久化。
+  const [imageResize, setImageResize] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const settingsPanelRef = useRef<HTMLDivElement>(null);
@@ -756,11 +767,44 @@ export default function Home() {
 
   const removeMedia = async (item: MediaItem) => {
     setMedia((current) => current.filter((candidate) => candidate.id !== item.id));
-    setContent((current) => current.replace(new RegExp(`\\n*\\[\\[image:${item.id}\\]\\]\\n*`, "g"), "\n\n"));
+    setContent((current) => current.replace(new RegExp(`\\n*\\[\\[image:${item.id}(\\|\\d+)?\\]\\]\\n*`, "g"), "\n\n"));
     URL.revokeObjectURL(item.src);
     await deleteStoredMedia(item.id).catch(() => undefined);
     notify("图片已移除");
   };
+
+  const handlePreviewImageClick = (event: React.MouseEvent<HTMLImageElement>, mediaId: string) => {
+    setImageResize((current) => (current === mediaId ? null : mediaId));
+  };
+
+  const setImageWidth = (mediaId: string, pct: number) => {
+    const clamped = Math.min(100, Math.max(25, Math.round(pct)));
+    setContent((current) =>
+      current.replace(
+        new RegExp(`\\[\\[image:${mediaId}(\\|\\d+)?\\]\\]`, "g"),
+        clamped >= 100 ? `[[image:${mediaId}]]` : `[[image:${mediaId}|${clamped}]]`,
+      ),
+    );
+  };
+
+  // 滚动或窗口变化时重新定位浮层（触发重渲染后重新读取图片位置）。
+  const [popTick, setPopTick] = useState(0);
+  useEffect(() => {
+    if (!imageResize) return;
+    const reposition = () => setPopTick((tick) => tick + 1);
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+    };
+  }, [imageResize]);
+
+  const resizeRect = useMemo(() => {
+    if (!imageResize) return null;
+    void popTick;
+    return document.querySelector<HTMLImageElement>(`img[data-media-id="${imageResize}"]`)?.getBoundingClientRect() ?? null;
+  }, [imageResize, popTick, media, content]);
 
   const download = async () => {
     const cards = Array.from(cardContainerRef.current?.querySelectorAll<HTMLElement>(".share-card") ?? []);
@@ -1037,7 +1081,14 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="preview-panel">
+      <section
+        className="preview-panel"
+        onMouseDown={(event) => {
+          // 点击浮层或其他图片之外的区域时关闭大小调节浮层。
+          const target = event.target as HTMLElement;
+          if (!target.closest(".image-resize-pop") && !target.closest(".content-image")) setImageResize(null);
+        }}
+      >
         {previewOpen && (
           <>
             <header className="preview-topbar">
@@ -1072,7 +1123,7 @@ export default function Home() {
                       <div><strong>{name || "未命名"}</strong><span>{handle || "@yourname"}</span></div>
                       <Sparkles className="profile-mark" size={17} />
                     </div>
-                    <div className="card-copy"><MarkdownBlocks blocks={page} media={media} /></div>
+                    <div className="card-copy"><MarkdownBlocks blocks={page} media={media} onImageClick={handlePreviewImageClick} /></div>
                     <footer><span>IDEA TO PAGE</span><span>{String(index + 1).padStart(2, "0")} / {String(visiblePages.length).padStart(2, "0")}</span></footer>
                   </article>
                 ))}
@@ -1085,6 +1136,30 @@ export default function Home() {
                 </aside>
               )}
             </div>
+
+            {imageResize && resizeRect && media.some((item) => item.id === imageResize) && (() => {
+              const widthMatch = content.match(new RegExp(`\\[\\[image:${imageResize}(?:\\|(\\d+))?\\]\\]`));
+              const resizePct = widthMatch && widthMatch[1] ? Math.min(100, Math.max(25, Number(widthMatch[1]))) : 100;
+              return (
+                <div className="image-resize-pop" style={{ left: resizeRect.left + resizeRect.width / 2, top: resizeRect.bottom + 10 }}>
+                  <span>图片大小</span>
+                  <input
+                    type="range"
+                    min={25}
+                    max={100}
+                    step={5}
+                    value={resizePct}
+                    onChange={(event) => setImageWidth(imageResize, Number(event.target.value))}
+                    aria-label="调整图片宽度"
+                  />
+                  <b>{resizePct}%</b>
+                  <button type="button" onClick={() => setImageWidth(imageResize, 50)}>小</button>
+                  <button type="button" onClick={() => setImageWidth(imageResize, 75)}>中</button>
+                  <button type="button" onClick={() => setImageWidth(imageResize, 100)}>大</button>
+                  <button type="button" className="image-resize-done" onClick={() => setImageResize(null)}>完成</button>
+                </div>
+              );
+            })()}
           </>
         )}
       </section>
