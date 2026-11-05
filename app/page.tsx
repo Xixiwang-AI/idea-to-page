@@ -586,7 +586,7 @@ export default function Home() {
       // 书籍式顶部对齐，避免行距被拉得稀稀拉拉。
       card.classList.toggle(
         "spread",
-        slack > copyRect.height * 0.22 && contentExtent >= copyRect.height * 0.55,
+        slack > copyRect.height * 0.15 && contentExtent >= copyRect.height * 0.55,
       );
     }
   }, [pages, previewOpen, mode, mediaTick]);
