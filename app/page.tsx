@@ -699,9 +699,7 @@ export default function Home() {
     });
   };
 
-  const addMedia = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
+  const addMediaFiles = async (files: File[]) => {
     if (!files.length) return;
     const invalid = files.find((file) => !file.type.startsWith("image/"));
     if (invalid) {
@@ -725,6 +723,34 @@ export default function Home() {
       notify(added.some((item) => item.type === "image/gif") ? "动态图片已添加" : `${added.length} 张图片已添加`);
     } catch {
       notify("图片保存失败，请换一张较小的图片试试");
+    }
+  };
+
+  const addMedia = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    void addMediaFiles(files);
+  };
+
+  // 直接在编辑器里粘贴图片/动图：只拦截带图片文件的粘贴，普通文本粘贴不受影响。
+  const handleEditorPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(event.clipboardData?.files ?? []).filter((file) => file.type.startsWith("image/"));
+    if (!files.length) return;
+    event.preventDefault();
+    void addMediaFiles(files);
+  };
+
+  // 拖拽图片文件到编辑器直接插入；纯文本拖拽保持浏览器默认行为。
+  const handleEditorDrop = (event: React.DragEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(event.dataTransfer?.files ?? []).filter((file) => file.type.startsWith("image/"));
+    if (!files.length) return;
+    event.preventDefault();
+    void addMediaFiles(files);
+  };
+
+  const handleEditorDragOver = (event: React.DragEvent<HTMLTextAreaElement>) => {
+    if (Array.from(event.dataTransfer?.types ?? []).includes("Files")) {
+      event.preventDefault();
     }
   };
 
@@ -1001,6 +1027,9 @@ export default function Home() {
             className="editor"
             value={content}
             onChange={(event) => setContent(event.target.value)}
+            onPaste={handleEditorPaste}
+            onDrop={handleEditorDrop}
+            onDragOver={handleEditorDragOver}
             spellCheck={false}
             aria-label="Markdown 编辑器"
           />
